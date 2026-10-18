@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+
+    <name>TSlotWorkbench</name>
+    <description>Parametric metric T-slot aluminium extrusions (2020, 3030, 4040) with undercut T-slots and a centre bore. Generic profiles use illustrative dimensions, not manufacturer specifications.</description>
+    <version>0.2.0</version>
+    <date>2026-10-18</date>
+
+    <maintainer email="baeurlelara@outlook.com">TSlotWorkbench maintainer</maintainer>
+    <license file="LICENSE">LGPL-2.1-or-later</license>
+
+    <icon>Resources/Icons/Logo.svg</icon>
+
+    <freecadmin>1.1.0</freecadmin>
+
+    <tag>extrusion</tag>
+    <tag>aluminium profile</tag>
+    <tag>t-slot</tag>
+
+    <content>
+        <workbench>
+            <classname>TSlotWorkbench</classname>
+        </workbench>
+    </content>
+
+</package>

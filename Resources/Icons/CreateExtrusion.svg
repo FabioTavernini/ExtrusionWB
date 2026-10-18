@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Create extrusion</title>
+  <!-- Bar in oblique projection -->
+  <path fill="#c3ccd5" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 30 L18 16 H52 L38 30 Z"/>
+  <path fill="#7d8b99" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M38 30 L52 16 V30 L38 44 Z"/>
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 30 H38 V44 H4 Z"/>
+  <!-- Slot along the front face -->
+  <path fill="none" stroke="#2e3a46" stroke-width="2" d="M4 37 H38"/>
+  <!-- Plus badge -->
+  <circle cx="50" cy="50" r="11" fill="#3c9b4a" stroke="#1f5a28" stroke-width="2"/>
+  <path fill="#ffffff" d="M48 43 H52 V48 H57 V52 H52 V57 H48 V52 H43 V48 H48 Z"/>
+</svg>

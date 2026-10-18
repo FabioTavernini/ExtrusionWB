@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+#
+# Project metadata for development tooling. FreeCAD itself installs the addon
+# from package.xml; this file is not needed at runtime.
+
+[project]
+name = "freecad.TSlotWorkbench"
+version = "0.2.0"
+description = "FreeCAD workbench for parametric T-slot aluminium extrusions"
+readme = "README.md"
+license = "LGPL-2.1-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+# FreeCAD provides FreeCAD, FreeCADGui and Part; there are no runtime dependencies.
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["freecad.TSlotWorkbench*"]
+namespaces = true
