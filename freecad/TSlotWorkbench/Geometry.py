@@ -15,7 +15,12 @@ solids:
 
 The section is centred on the local Z axis and the solid runs from Z = 0
 to Z = length.
+
+Shapes are cached by profile (and length), since a recompute often only
+moves an object: callers get a cheap copy that shares the geometry.
 """
+
+from functools import lru_cache
 
 import FreeCAD
 import Part
@@ -75,6 +80,11 @@ def bore_centres(profile):
 
 def create_profile_face(profile):
     """Return the cross-section of ``profile`` as a valid ``Part.Face`` in the XY plane."""
+    return _profile_face(profile).copy(False)
+
+
+@lru_cache(maxsize=None)
+def _profile_face(profile):
     outer = Part.makePolygon([FreeCAD.Vector(x, y, 0.0) for x, y in outline_points(profile)], True)
     bores = [Part.Wire(Part.makeCircle(profile.bore_diameter / 2.0, FreeCAD.Vector(x, y, 0.0)))
              for x, y in bore_centres(profile)]
@@ -91,8 +101,12 @@ def create_profile_face(profile):
 
 def create_extrusion_shape(profile, length):
     """Return ``profile`` extruded ``length`` mm along +Z as one valid solid."""
-    length = Profiles.validate_length(length)
-    solid = create_profile_face(profile).extrude(FreeCAD.Vector(0.0, 0.0, length))
+    return _extrusion_shape(profile, Profiles.validate_length(length)).copy(False)
+
+
+@lru_cache(maxsize=256)
+def _extrusion_shape(profile, length):
+    solid = _profile_face(profile).extrude(FreeCAD.Vector(0.0, 0.0, length))
     if len(solid.Solids) != 1 or not solid.isValid():
         raise Profiles.ProfileError(f"Extrusion of {profile.size} is not a single valid solid")
     return solid.Solids[0]

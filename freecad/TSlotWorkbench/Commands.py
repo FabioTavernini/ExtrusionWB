@@ -78,7 +78,9 @@ class CornerBracketCommand:
             "MenuText": "Corner Bracket",
             "ToolTip": "Select two extrusions that meet at 90 degrees (the end of one touching a side "
                        "of the other) to add a bracket in every inside corner of the joint, with its "
-                       "T-nuts and screws. Also select the faces a bracket should sit on to add just that one.",
+                       "T-nuts and screws. A joint that is slightly off (a few mm, a few degrees) is "
+                       "snapped into place first. Also select the faces a bracket should sit on to add "
+                       "just that one.",
             "Pixmap": icon_path("CornerBracket.svg"),
         }
 
@@ -88,13 +90,20 @@ class CornerBracketCommand:
     def Activated(self):
         from . import CornerBracket, Hardware
 
-        extrusions, faces = _selected_extrusions()
+        extrusions, face_names = _selected_extrusions()
         if len(extrusions) != 2:
             return
         a, b = extrusions
         doc = a.Document
         doc.openTransaction("Corner Bracket")
         try:
+            faces = _resolve_faces(face_names)
+            snapped = None
+            if not CornerBracket.find_corners(a, b):
+                snapped = CornerBracket.snap_joint(a, b)
+                if snapped:
+                    doc.recompute()
+                    faces = _resolve_faces(face_names)  # the post moved
             brackets = CornerBracket.make_corner_brackets(doc, a, b, faces, hardware=True)
             if not brackets:
                 raise RuntimeError(CornerBracket.explain_no_corner(a, b, faces))
@@ -107,6 +116,8 @@ class CornerBracketCommand:
             FreeCAD.Console.PrintError(f"Corner Bracket failed: {exc}\n")
             return
         doc.commitTransaction()
+        if snapped:
+            FreeCAD.Console.PrintMessage(f"Corner Bracket: {snapped}\n")
         if not Hardware.fasteners_available():
             FreeCAD.Console.PrintWarning(f"Corner Bracket: T-nuts added without screws. {Hardware.FASTENERS_MISSING}\n")
 
@@ -218,7 +229,7 @@ def _selected_nuts():
 
 
 def _selected_extrusions():
-    """The distinct selected extrusions, and the selected faces as (object, face)."""
+    """The distinct selected extrusions, and the selected faces as (object, face name)."""
     from .Extrusion import Extrusion
 
     extrusions, faces = [], []
@@ -228,8 +239,13 @@ def _selected_extrusions():
             continue
         if obj not in extrusions:
             extrusions.append(obj)
-        faces.extend((obj, sub) for sub in sel.SubObjects if sub.ShapeType == "Face")
+        faces.extend((obj, name) for name in sel.SubElementNames if name.startswith("Face"))
     return extrusions, faces
+
+
+def _resolve_faces(face_names):
+    """(object, face name) pairs as (object, face shape), where the faces are now."""
+    return [(obj, obj.getSubObject(name)) for obj, name in face_names]
 
 
 COMMANDS = ["TSlot_CreateExtrusion", "TSlot_CornerBracket", "TSlot_TSlotNut", "TSlot_Screw"]

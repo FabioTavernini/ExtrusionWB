@@ -22,6 +22,8 @@ FreeCAD stores the proxies as ``freecad.TSlotWorkbench.Hardware.TSlotNut``
 and ``...ViewProviderTSlotNut`` in saved documents; do not rename them.
 """
 
+from functools import lru_cache
+
 import FreeCAD
 import Part  # must be imported before FastenersCmd, which crashes FreeCADCmd otherwise
 
@@ -146,6 +148,12 @@ def nut_outline(slot):
 
 def make_nut_shape(slot, thread):
     """A T-nut for ``slot`` with a plain hole of the ``thread``'s nominal diameter."""
+    return _nut_shape(slot, thread).copy(False)
+
+
+@lru_cache(maxsize=None)
+def _nut_shape(slot, thread):
+    # Cached: a recompute usually only moves the nut.
     d = THREADS[thread]
     if d >= slot.opening - 2.0 * SIDE_CLEARANCE:
         raise Profiles.ProfileError(f"An {thread} hole does not fit the nut neck for a {slot.opening:g} mm slot")

@@ -162,6 +162,65 @@ class TestCornerBrackets(unittest.TestCase):
                 self.assertIn(f"-X face of {self.base.Label}", message)  # the base's top face
                 self.doc.removeObject(post.Name)
 
+    def assertSnapped(self, post, x=250.0):
+        """The post stands exactly on the base's top face, square to it, at ``x``."""
+        pl = post.Placement
+        self.assertAlmostEqual(pl.Base.x, x, delta=1e-6)
+        self.assertAlmostEqual(pl.Base.y, 0.0, delta=1e-6)
+        self.assertAlmostEqual(pl.Base.z, 20.0, delta=1e-6)
+        self.assertLess(pl.Rotation.multVec(FreeCAD.Vector(0, 0, 1)).sub(FreeCAD.Vector(0, 0, 1)).Length, 1e-9)
+        self.assertLess(pl.Rotation.multVec(FreeCAD.Vector(1, 0, 0)).sub(FreeCAD.Vector(1, 0, 0)).Length, 1e-9)
+
+    def test_snaps_near_misses(self):
+        cases = (
+            ("gap", FreeCAD.Placement(FreeCAD.Vector(250, 0, 24), FreeCAD.Rotation()), "closed a 4.000 mm gap"),
+            ("overlap", FreeCAD.Placement(FreeCAD.Vector(250, 0, 18), FreeCAD.Rotation()),
+             "pulled it 2.000 mm out of the face"),
+            ("tilt", FreeCAD.Placement(FreeCAD.Vector(250, 0, 20), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 2)),
+             "straightened a 2.00 degree tilt"),
+            ("twist", FreeCAD.Placement(FreeCAD.Vector(250, 0, 21), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), -3)),
+             "turned it 3.00 degrees"),
+        )
+        for name, placement, expected in cases:
+            with self.subTest(name):
+                post = self.extrusion("4040", 500, placement)
+                message = CornerBracket.snap_joint(self.base, post)
+                self.assertIn(f"Snapped {post.Label} onto {self.base.Label}", message)
+                self.assertIn(expected, message)
+                self.doc.recompute()
+                self.assertSnapped(post)
+                brackets = self.brackets(self.base, post)
+                self.assertEqual(len(brackets), 2)
+                for bracket in brackets:
+                    self.assertSeated(bracket, self.base, post)
+                    self.doc.removeObject(bracket.Name)
+                self.doc.removeObject(post.Name)
+
+    def test_snaps_tilt_about_end_centre(self):
+        """A tilted post pivots about the centre of its end, so that point stays put."""
+        post = self.extrusion("4040", 500, FreeCAD.Placement(
+            FreeCAD.Vector(100, 0, 23), FreeCAD.Rotation(FreeCAD.Vector(0, 1, 0), 4)))
+        CornerBracket.snap_joint(self.base, post)
+        self.doc.recompute()
+        self.assertSnapped(post, x=100.0)
+
+    def test_does_not_snap_far_misses(self):
+        for placement in (
+            FreeCAD.Placement(FreeCAD.Vector(250, 0, 35), FreeCAD.Rotation()),        # 15 mm gap
+            FreeCAD.Placement(FreeCAD.Vector(250, 0, 20), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 20)),
+            FreeCAD.Placement(FreeCAD.Vector(250, 0, 20), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), 30)),
+        ):
+            with self.subTest(placement=placement):
+                post = self.extrusion("4040", 500, placement)
+                self.assertIsNone(CornerBracket.snap_joint(self.base, post))
+                self.assertEqual(post.Placement, placement)
+                self.assertIn("too far off to snap", CornerBracket.explain_no_corner(self.base, post))
+                self.doc.removeObject(post.Name)
+
+    def test_exact_joint_is_not_moved(self):
+        post = self.post(250.0)
+        self.assertIsNone(CornerBracket.snap_joint(self.base, post))
+
     def test_smaller_post_gets_smaller_bracket(self):
         post = self.post(250.0, size="2020")
         brackets = self.brackets(post, self.base)

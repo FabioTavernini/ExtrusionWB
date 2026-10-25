@@ -294,16 +294,23 @@ on (Ctrl+click a face of the post, of the base, or both). The size is the
 largest that fits the smaller of the two profiles; change it with
 `BracketSize`.
 
+**Snapping.** A joint does not have to be exact. If the profiles are
+nearly joined, within 10 mm (a gap, or the end sunk into the face) and 5°
+(tilted, or turned about its own axis), **Corner Bracket** first snaps the
+post into place: it turns it about the centre of its end until it is
+square to the base and lined up with it, then moves it onto the face. The
+Report view says what moved, and one undo reverts both the snap and the
+brackets. So lining profiles up roughly with **Transform** is enough.
+
 **If no bracket is added**, the Report view says why:
 
 - *"… but no bracket there sits on the selected face(s)"*: faces are
   part of the selection, often left over from clicking in the 3D view
   (FreeCAD keeps them when you then pick the object in the tree). Click
   empty space to clear the selection, then select just the two extrusions.
-- *"Closest is … but there is a 0.300 mm gap"* (or the end goes into the
-  face, is off the face, or is tilted): the profiles only look aligned.
-  Joints must be exact to within 0.001 mm, so dragging by eye usually
-  misses. Type exact values into `Placement` instead.
+- *"Closest is … too far off to snap into place"*: the profiles are more
+  than 10 mm or 5° from a joint (or the post's end is not over the face).
+  Move them closer and try again, or type exact values into `Placement`.
 
 **Following the joint.** The bracket stores its corner, not a position:
 

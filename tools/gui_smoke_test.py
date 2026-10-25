@@ -197,6 +197,29 @@ class TestGui(unittest.TestCase):
         doc.removeObject(bracket.Name)
         self.assertEqual(len(doc.Objects), 2)
 
+    def test_corner_bracket_snaps(self):
+        """A post 4 mm above the base is snapped down, and one undo puts it back."""
+        doc = FreeCAD.newDocument()
+        FreeCADGui.runCommand(CMD)
+        base = doc.Objects[-1]
+        base.Placement = FreeCAD.Placement(FreeCAD.Vector(), FreeCAD.Rotation(FreeCAD.Vector(0, 1, 0), 90))
+        FreeCADGui.runCommand(CMD)
+        post = doc.Objects[-1]
+        post.Placement.Base = FreeCAD.Vector(20, 0, 24)
+        doc.recompute()
+        count = len(doc.Objects)
+
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(doc.Name, base.Name)
+        FreeCADGui.Selection.addSelection(doc.Name, post.Name)
+        FreeCADGui.runCommand(BRACKET_CMD)
+
+        self.assertAlmostEqual(post.Placement.Base.z, 20.0, places=9)
+        self.assertGreater(len(doc.Objects), count)
+        doc.undo()
+        self.assertEqual(len(doc.Objects), count)
+        self.assertAlmostEqual(post.Placement.Base.z, 24.0, places=9)
+
     def test_nut_and_screw_commands(self):
         doc = FreeCAD.newDocument()
         FreeCADGui.runCommand(CMD)  # a 4040 along Z; its +X face is at X = 20

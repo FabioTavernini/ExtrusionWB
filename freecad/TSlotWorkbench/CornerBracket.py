@@ -21,6 +21,7 @@ in saved documents; do not rename the module or the class.
 
 import math
 from collections import namedtuple
+from functools import lru_cache
 
 import FreeCAD
 import Part
@@ -185,14 +186,26 @@ def filter_by_faces(corners, faces):
 _SIDE_NAMES = {(0, 1): "+X", (0, -1): "-X", (1, 1): "+Y", (1, -1): "-Y"}
 
 
-def _nearest_miss(a, b):
-    """Describe how close the end of one extrusion comes to being a joint with the other.
+# How far off a joint may be for Corner Bracket to snap it into place.
+SNAP_DISTANCE = 10.0  # mm of gap or overlap
+SNAP_ANGLE = 5.0      # degrees of tilt or twist
 
-    Looks at each end of each extrusion against each side face of the
-    other, and reports the one closest to a joint. Closeness is a distance:
-    the gap, plus how far the end's centre is off the face, plus how far
-    the tilt moves the edge of the post's end (tilts over 45 degrees are
-    not near misses).
+Miss = namedtuple("Miss", "post base end side angle gap outside centre face_normal twist")
+Miss.__doc__ = """How close the end of ``post`` comes to a joint with a side face of ``base``.
+
+``angle`` is the tilt of the end from the face in degrees; ``gap`` the
+distance from the end's centre to the face (negative when inside the base);
+``outside`` how far that centre is off the face's extent; ``twist`` how far
+the post is turned about its axis from lining up with the base, in degrees.
+``centre`` and ``face_normal`` (outward, towards the post) are global."""
+
+
+def nearest_miss(a, b):
+    """The end of one extrusion and side face of the other that come closest to a joint.
+
+    Closeness is a distance: the gap, plus how far the end's centre is off
+    the face, plus how far the tilt moves the edge of the post's end. Tilts
+    over 45 degrees are not near misses. Returns a :class:`Miss`, or None.
     """
     best = None
     for post, base in ((a, b), (b, a)):
@@ -210,28 +223,89 @@ def _nearest_miss(a, b):
                 # The face's outward normal should point straight back at the post.
                 cos = max(-1.0, min(1.0, -sign * local_n[axis]))
                 angle = math.degrees(math.acos(cos))
+                if angle > 45.0:
+                    continue
                 gap = sign * local_c[axis] - half[axis]
                 other = 1 - axis
                 outside = max(abs(local_c[other]) - half[other], -local_c.z, local_c.z - base.Length.Value, 0.0)
-                if angle > 45.0:
-                    continue
                 key = abs(gap) + outside + _profile(post).outer * math.sin(math.radians(angle))
                 if best is None or key < best[0]:
-                    best = (key, post, base, end, side, angle, gap, outside)
-    if best is None:
-        return None
-    _, post, base, end, side, angle, gap, outside = best
-    where = f"the {end.lower()} of {post.Label} and the {side} face of {base.Label}"
+                    face_normal = base_pl.Rotation.multVec(FreeCAD.Vector(*(sign if i == axis else 0 for i in range(3))))
+                    twist = _twist(base, face_normal, pl.Rotation)
+                    best = (key, Miss(post, base, end, side, angle, gap, outside, centre, face_normal, twist))
+    return best[1] if best else None
+
+
+def _describe_miss(miss):
+    where = f"the {miss.end.lower()} of {miss.post.Label} and the {miss.side} face of {miss.base.Label}"
     problems = []
-    if angle > 0.01:
-        problems.append(f"the end is tilted {angle:.2f} degrees from the face, so they are not at 90 degrees")
-    if abs(gap) > TOL:
-        problems.append(f"there is a {gap:.3f} mm gap" if gap > 0 else f"the end goes {-gap:.3f} mm into the face")
-    if outside > TOL:
-        problems.append(f"the end's centre is {outside:.3f} mm off the face")
+    if miss.angle > 0.01:
+        problems.append(f"the end is tilted {miss.angle:.2f} degrees from the face, so they are not at 90 degrees")
+    if abs(miss.gap) > TOL:
+        problems.append(f"there is a {miss.gap:.3f} mm gap" if miss.gap > 0
+                        else f"the end goes {-miss.gap:.3f} mm into the face")
+    if miss.outside > TOL:
+        problems.append(f"the end's centre is {miss.outside:.3f} mm off the face")
+    if abs(miss.twist) > 0.01:
+        problems.append(f"{miss.post.Label} is turned {abs(miss.twist):.2f} degrees about its axis, "
+                        f"so its sides do not line up with {miss.base.Label}")
     if not problems:
         return None
     return f"Closest is {where}, but " + "; ".join(problems) + "."
+
+
+def _twist(base, n, rotation):
+    """Degrees the post is turned about face normal ``n`` from lining up with the base.
+
+    ``rotation`` is the post's global rotation; only its turn about ``n`` counts.
+    """
+    post_x = rotation.multVec(FreeCAD.Vector(1, 0, 0))
+    base_axis = base.getGlobalPlacement().Rotation.multVec(FreeCAD.Vector(0, 0, 1))
+    # Signed angle from the base axis to the post's X, about n, folded to the nearest quarter turn.
+    angle = math.degrees(math.atan2(base_axis.cross(post_x).dot(n), base_axis.dot(post_x)))
+    return angle - 90.0 * round(angle / 90.0)
+
+
+def snap_joint(a, b):
+    """Move the post of a near-miss joint between ``a`` and ``b`` into exact contact.
+
+    The post is turned about the centre of its end, so it is square to the
+    base's face and its sides line up with the base's, then moved onto the
+    face. Only near misses are snapped: within ``SNAP_DISTANCE`` and
+    ``SNAP_ANGLE``, with the end's centre on the face. Returns a description
+    of what moved, or None if nothing was snapped.
+    """
+    miss = nearest_miss(a, b)
+    if miss is None or miss.outside > TOL or abs(miss.gap) > SNAP_DISTANCE or miss.angle > SNAP_ANGLE:
+        return None
+    post, base = miss.post, miss.base
+    old = post.getGlobalPlacement()
+    end_normal = old.Rotation.multVec(FreeCAD.Vector(0, 0, -1 if miss.end == "Start" else 1))
+    tilt = FreeCAD.Rotation(end_normal, -miss.face_normal)
+    twist = _twist(base, miss.face_normal, tilt.multiply(old.Rotation))
+    if abs(twist) > SNAP_ANGLE:
+        return None
+    turn = FreeCAD.Rotation(miss.face_normal, -twist).multiply(tilt)
+    c = miss.centre
+    # Turn about the end's centre, then close the gap along the face normal.
+    move = (FreeCAD.Placement(c - miss.face_normal * miss.gap, FreeCAD.Rotation())
+            .multiply(FreeCAD.Placement(FreeCAD.Vector(), turn))
+            .multiply(FreeCAD.Placement(-c, FreeCAD.Rotation())))
+    new = move.multiply(old)
+    parent = old.multiply(post.Placement.inverse())
+    post.Placement = parent.inverse().multiply(new)
+
+    done = []
+    if abs(miss.gap) > TOL:
+        done.append(f"closed a {miss.gap:.3f} mm gap" if miss.gap > 0
+                    else f"pulled it {-miss.gap:.3f} mm out of the face")
+    if miss.angle > 1e-6:
+        done.append(f"straightened a {miss.angle:.2f} degree tilt")
+    if abs(twist) > 1e-6:
+        done.append(f"turned it {abs(twist):.2f} degrees to line up")
+    if not done:
+        return None
+    return f"Snapped {post.Label} onto {base.Label}: " + ", ".join(done) + "."
 
 
 def explain_no_corner(a, b, faces=()):
@@ -244,9 +318,11 @@ def explain_no_corner(a, b, faces=()):
                 "the two extrusions to add them all, or select the faces a bracket should sit on.")
     message = (f"No inside corner between {a.Label} and {b.Label}. The end of one must touch a side "
                "face of the other, at 90 degrees, with room for the bracket on that face.")
-    miss = _nearest_miss(a, b)
-    if miss:
-        message += " " + miss + " Set exact values in the Placement property to fix it."
+    miss = nearest_miss(a, b)
+    text = _describe_miss(miss) if miss else None
+    if text:
+        message += (f" {text} That is too far off to snap into place (more than {SNAP_DISTANCE:g} mm or "
+                    f"{SNAP_ANGLE:g} degrees); move it closer, or set exact values in its Placement.")
     return message
 
 
@@ -319,6 +395,12 @@ def _slotted_hole(bracket, along, through):
 
 def make_bracket_shape(bracket):
     """The bracket as one solid in its local frame (see ``Brackets``)."""
+    return _bracket_shape(bracket).copy(False)
+
+
+@lru_cache(maxsize=None)
+def _bracket_shape(bracket):
+    # Cached: a recompute usually only moves the bracket.
     w, leg, t = bracket.width, bracket.leg, bracket.wall
     v = FreeCAD.Vector
     base_leg = Part.makeBox(w, leg, t, v(-w / 2.0, 0, 0))
