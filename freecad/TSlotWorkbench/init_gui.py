@@ -22,6 +22,10 @@ class TSlotWorkbench(FreeCADGui.Workbench):
 
         self.appendToolbar("T-Slot", Commands.COMMANDS)
         self.appendMenu("Extrusions", Commands.COMMANDS)
+        # One toolbar and one submenu of quick-insert buttons per family.
+        for family, commands in Commands.QUICK_COMMANDS.items():
+            self.appendToolbar(f"T-Slot {family}", commands)
+            self.appendMenu(["Extrusions", family], commands)
 
     def GetClassName(self):
         """Required for Python workbenches. Must return this exact string."""

@@ -17,9 +17,16 @@ from PySide import QtCore, QtWidgets
 
 WB = "TSlotWorkbench"
 CMD = "TSlot_CreateExtrusion"
-QUICK_CMDS = {"2020": "TSlot_CreateExtrusion2020",
-              "3030": "TSlot_CreateExtrusion3030",
-              "4040": "TSlot_CreateExtrusion4040"}
+# Quick-insert buttons: toolbar/submenu group -> {command: (family, size)}.
+QUICK_CMDS = {
+    "Generic": {"TSlot_CreateGeneric2020": ("Generic", "2020"),
+                "TSlot_CreateGeneric4040": ("Generic", "4040"),
+                "TSlot_CreateGeneric8080": ("Generic", "8080")},
+    "B-Type": {"TSlot_CreateBType2020": ("B-Type", "2020"),
+               "TSlot_CreateBType4040": ("B-Type", "4040"),
+               "TSlot_CreateBType8080": ("B-Type", "8080")},
+}
+QUICK_TOOLBARS = {f"T-Slot {group}" for group in QUICK_CMDS}
 
 
 class TestGui(unittest.TestCase):
@@ -43,7 +50,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(FreeCADGui.activeWorkbench().name(), WB)
 
     def test_only_own_toolbar_and_menu(self):
-        """We add one toolbar and one menu, and they do not leak into other workbenches."""
+        """We add our toolbars and one menu, and they do not leak into other workbenches."""
         # FreeCAD's standard toolbars/menus are the ones every workbench shares.
         others = {}
         for name in ("PartWorkbench", "SketcherWorkbench"):
@@ -55,23 +62,39 @@ class TestGui(unittest.TestCase):
 
         FreeCADGui.activateWorkbench(WB)
         wb = FreeCADGui.getWorkbench(WB)
-        self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"})
+        self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"} | QUICK_TOOLBARS)
         self.assertEqual(set(wb.listMenus()) - std_menus, {"Extrusions"})
-        self.assertEqual(wb.getToolbarItems()["T-Slot"], [CMD, *QUICK_CMDS.values()])
+        items = wb.getToolbarItems()
+        self.assertEqual(items["T-Slot"], [CMD])
+        for group, commands in QUICK_CMDS.items():
+            self.assertEqual(items[f"T-Slot {group}"], list(commands))
         for toolbars, menus in others.values():
-            self.assertNotIn("T-Slot", toolbars)
+            self.assertFalse(({"T-Slot"} | QUICK_TOOLBARS) & set(toolbars))
             self.assertNotIn("Extrusions", menus)
 
     def test_toolbar_and_menu_visible(self):
         mw = FreeCADGui.getMainWindow()
-        toolbars = [tb for tb in mw.findChildren(QtWidgets.QToolBar) if tb.objectName() == "T-Slot"]
-        self.assertEqual(len(toolbars), 1)
-        texts = [a.text() for a in toolbars[0].actions()]
-        self.assertIn("Create Extrusion", texts)
-        for size in QUICK_CMDS:
-            self.assertIn(f"Create {size} Extrusion", texts)
-        menus = [a.text().replace("&", "") for a in mw.menuBar().actions()]
-        self.assertIn("Extrusions", menus)
+        def toolbar_texts(name):
+            toolbars = [tb for tb in mw.findChildren(QtWidgets.QToolBar) if tb.objectName() == name]
+            self.assertEqual(len(toolbars), 1, name)
+            self.assertTrue(toolbars[0].isVisible(), name)
+            return [a.text() for a in toolbars[0].actions()]
+
+        self.assertIn("Create Extrusion", toolbar_texts("T-Slot"))
+        for group, commands in QUICK_CMDS.items():
+            texts = toolbar_texts(f"T-Slot {group}")
+            for family, size in commands.values():
+                self.assertIn(f"Create {family} {size} Extrusion", texts)
+
+        menu_actions = {a.text().replace("&", ""): a for a in mw.menuBar().actions()}
+        self.assertIn("Extrusions", menu_actions)
+        submenus = {a.text().replace("&", ""): a.menu() for a in menu_actions["Extrusions"].menu().actions()
+                    if a.menu() is not None}
+        for group, commands in QUICK_CMDS.items():
+            self.assertIn(group, submenus)
+            texts = [a.text() for a in submenus[group].actions()]
+            for family, size in commands.values():
+                self.assertIn(f"Create {family} {size} Extrusion", texts)
 
     def test_command(self):
         self.assertIn(CMD, FreeCADGui.listCommands())
@@ -101,17 +124,23 @@ class TestGui(unittest.TestCase):
 
     def test_quick_insert(self):
         doc = FreeCAD.newDocument()
-        for size, cmd in QUICK_CMDS.items():
-            command = FreeCADGui.Command.get(cmd)
-            self.assertTrue(command.isActive())
-            self.assertTrue(os.path.isfile(command.getInfo()["pixmap"]))
-            FreeCADGui.runCommand(cmd)
-            obj = doc.Objects[-1]
-            self.assertEqual(obj.ProfileSize, size)
-            self.assertAlmostEqual(obj.Shape.BoundBox.XLength, int(size[:2]))
-            self.assertAlmostEqual(obj.Shape.BoundBox.ZLength, 750.0)
-            self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [obj.Name])
-        self.assertEqual(len(doc.Objects), len(QUICK_CMDS))
+        count = 0
+        for commands in QUICK_CMDS.values():
+            for cmd, (family, size) in commands.items():
+                with self.subTest(cmd=cmd):
+                    command = FreeCADGui.Command.get(cmd)
+                    self.assertTrue(command.isActive())
+                    self.assertTrue(os.path.isfile(command.getInfo()["pixmap"]))
+                    FreeCADGui.runCommand(cmd)
+                    count += 1
+                    obj = doc.Objects[-1]
+                    self.assertEqual((obj.ProfileFamily, obj.ProfileSize), (family, size))
+                    bb = obj.Shape.BoundBox
+                    self.assertAlmostEqual(bb.XLength, int(size[:2]))
+                    self.assertAlmostEqual(bb.YLength, int(size[2:]))
+                    self.assertAlmostEqual(bb.ZLength, 750.0)
+                    self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [obj.Name])
+        self.assertEqual(len(doc.Objects), count)
 
     def test_create_is_undoable(self):
         doc = FreeCAD.newDocument()
