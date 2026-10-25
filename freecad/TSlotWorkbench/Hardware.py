@@ -299,7 +299,8 @@ def make_nut(doc, extrusion, side, slot, position, thread=None, name="TSlotNut")
     obj.Slot = slot
     obj.Position = position
     obj.Thread = thread
-    obj.Label = f"T-nut {thread}"
+    # Size first: FreeCAD makes labels unique by bumping a trailing number.
+    obj.Label = f"{thread} T-nut"
     if FreeCAD.GuiUp:
         ViewProviderTSlotNut(obj.ViewObject)
     return obj

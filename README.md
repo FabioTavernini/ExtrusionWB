@@ -17,8 +17,16 @@ FreeCAD's property editor.
 > core is still solid, though, so area and mass are too high (see
 > [B-Type](#b-type-bosch-rexroth-compatible)).
 
+## Demo
+
+Profiles in both families, corner brackets that snap into a joint and
+follow it, and T-nuts with screws (1:50):
+
+https://github.com/user-attachments/assets/7ed7ae74-4891-429f-9dcd-3f6c5e011870
+
 ## Contents
 
+- [Demo](#demo)
 - [Features](#features)
 - [Installation](#installation)
   - [Install with git](#install-with-git)

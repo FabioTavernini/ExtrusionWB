@@ -99,7 +99,7 @@ class TestCornerBrackets(unittest.TestCase):
         self.assertEqual((bracket.Post, bracket.Base), (post, self.base))
         self.assertEqual((bracket.PostEnd, bracket.PostSide, bracket.Slot), ("Start", "+X", 0))
         self.assertEqual(bracket.BracketSize, "40")
-        self.assertEqual(bracket.Label, "Corner bracket 40")
+        self.assertEqual(bracket.Label, "40 corner bracket")
         bb = bracket.Shape.BoundBox
         b = Brackets.get_bracket("40")
         self.assertAlmostEqual(bb.XMin, 40.0, delta=TOL)

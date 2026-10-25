@@ -472,7 +472,8 @@ def make_corner_bracket(doc, corner, size=None, name="CornerBracket"):
     obj.PostSide = corner.side
     obj.Slot = corner.slot
     obj.BracketSize = bracket.size
-    obj.Label = f"Corner bracket {bracket.size}"
+    # Size first: FreeCAD makes labels unique by bumping a trailing number.
+    obj.Label = f"{bracket.size} corner bracket"
     if FreeCAD.GuiUp:
         ViewProviderCornerBracket(obj.ViewObject)
     return obj

@@ -95,7 +95,7 @@ class TestNuts(HardwareTestCase):
         self.doc.recompute()
         self.assertClean(nut)
         self.assertEqual(nut.Thread, "M8")
-        self.assertEqual(nut.Label, "T-nut M8")
+        self.assertEqual(nut.Label, "M8 T-nut")
         self.assertNoClash(nut, self.base)
         self.assertLess(nut.Shape.distToShape(self.base.Shape)[0], 1e-6)  # bears on the lips
         # On the top face (Z = 20), at X = 120, centred on Y = 0.
@@ -103,6 +103,13 @@ class TestNuts(HardwareTestCase):
         self.assertAlmostEqual(c.x, 120.0, delta=TOL)
         self.assertAlmostEqual(c.y, 0.0, delta=TOL)
         self.assertLess(nut.Shape.BoundBox.ZMax, 20.0)
+
+    def test_duplicate_labels_keep_the_thread(self):
+        """FreeCAD makes labels unique by bumping a trailing number; ours must not end in one."""
+        labels = [Hardware.make_nut(self.doc, self.base, "-X", 0, x).Label for x in (100.0, 200.0, 300.0)]
+        self.assertEqual(labels[0], "M8 T-nut")
+        for label in labels:
+            self.assertTrue(label.startswith("M8 T-nut"), label)
 
     def test_locate_snaps_to_nearest_slot(self):
         point = FreeCAD.Vector(200.0, 3.0, 20.0)

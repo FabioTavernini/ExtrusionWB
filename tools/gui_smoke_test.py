@@ -168,7 +168,7 @@ class TestGui(unittest.TestCase):
         from freecad.TSlotWorkbench import CornerBracket, Hardware
 
         (bracket,) = [o for o in doc.Objects if isinstance(getattr(o, "Proxy", None), CornerBracket.CornerBracket)]
-        self.assertEqual(bracket.Label, "Corner bracket 40")
+        self.assertEqual(bracket.Label, "40 corner bracket")
         self.assertTrue(bracket.isValid())
         self.assertTrue(bracket.ViewObject.Visibility)
         self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [bracket.Name])
@@ -242,7 +242,7 @@ class TestGui(unittest.TestCase):
         FreeCADGui.runCommand(NUT_CMD)
 
         nut = doc.Objects[-1]
-        self.assertEqual(nut.Label, "T-nut M6")  # Generic 4040: 8 mm slot
+        self.assertEqual(nut.Label, "M6 T-nut")  # Generic 4040: 8 mm slot
         self.assertEqual(nut.Side, "+X")
         self.assertAlmostEqual(nut.Position.Value, point.z, places=6)
         self.assertTrue(nut.isValid())
