@@ -17,6 +17,8 @@ FreeCAD's property editor.
 - **Extrusions** workbench with a **T-Slot** toolbar and an **Extrusions** menu.
 - **Create Extrusion** command: adds a 4040 × 750 mm extrusion, creating a
   document if none is open. The command is one undo step.
+- **Create 2020 / 3030 / 4040 Extrusion** quick-insert buttons next to it,
+  which add a 750 mm extrusion of that size directly.
 - Parametric `Part::FeaturePython` object with these properties:
 
   | Property           | Type        | Notes                                   |
@@ -121,7 +123,8 @@ To uninstall, remove the symlink and restart FreeCAD.
 
 1. Choose **Extrusions** in the workbench selector.
 2. Click **Create Extrusion** on the toolbar, or use **Extrusions → Create Extrusion**.
-   A 40 × 40 × 750 mm extrusion appears and is selected.
+   A 40 × 40 × 750 mm extrusion appears and is selected. The **2020**,
+   **3030** and **4040** buttons next to it insert that size directly.
 3. In the property editor, change `ProfileSize` (for example to `3030`) and
    `Length` (for example to `1200 mm`). The geometry is rebuilt on the next
    recompute. FreeCAD usually recomputes right after a property edit; if the

@@ -17,6 +17,9 @@ from PySide import QtCore, QtWidgets
 
 WB = "TSlotWorkbench"
 CMD = "TSlot_CreateExtrusion"
+QUICK_CMDS = {"2020": "TSlot_CreateExtrusion2020",
+              "3030": "TSlot_CreateExtrusion3030",
+              "4040": "TSlot_CreateExtrusion4040"}
 
 
 class TestGui(unittest.TestCase):
@@ -54,7 +57,7 @@ class TestGui(unittest.TestCase):
         wb = FreeCADGui.getWorkbench(WB)
         self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"})
         self.assertEqual(set(wb.listMenus()) - std_menus, {"Extrusions"})
-        self.assertEqual(wb.getToolbarItems()["T-Slot"], [CMD])
+        self.assertEqual(wb.getToolbarItems()["T-Slot"], [CMD, *QUICK_CMDS.values()])
         for toolbars, menus in others.values():
             self.assertNotIn("T-Slot", toolbars)
             self.assertNotIn("Extrusions", menus)
@@ -63,7 +66,10 @@ class TestGui(unittest.TestCase):
         mw = FreeCADGui.getMainWindow()
         toolbars = [tb for tb in mw.findChildren(QtWidgets.QToolBar) if tb.objectName() == "T-Slot"]
         self.assertEqual(len(toolbars), 1)
-        self.assertIn("Create Extrusion", [a.text() for a in toolbars[0].actions()])
+        texts = [a.text() for a in toolbars[0].actions()]
+        self.assertIn("Create Extrusion", texts)
+        for size in QUICK_CMDS:
+            self.assertIn(f"Create {size} Extrusion", texts)
         menus = [a.text().replace("&", "") for a in mw.menuBar().actions()]
         self.assertIn("Extrusions", menus)
 
@@ -92,6 +98,20 @@ class TestGui(unittest.TestCase):
         doc.recompute()
         bb = obj.Shape.BoundBox
         self.assertEqual((round(bb.XLength, 6), round(bb.ZLength, 6)), (30, 1200))
+
+    def test_quick_insert(self):
+        doc = FreeCAD.newDocument()
+        for size, cmd in QUICK_CMDS.items():
+            command = FreeCADGui.Command.get(cmd)
+            self.assertTrue(command.isActive())
+            self.assertTrue(os.path.isfile(command.getInfo()["pixmap"]))
+            FreeCADGui.runCommand(cmd)
+            obj = doc.Objects[-1]
+            self.assertEqual(obj.ProfileSize, size)
+            self.assertAlmostEqual(obj.Shape.BoundBox.XLength, int(size[:2]))
+            self.assertAlmostEqual(obj.Shape.BoundBox.ZLength, 750.0)
+            self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [obj.Name])
+        self.assertEqual(len(doc.Objects), len(QUICK_CMDS))
 
     def test_create_is_undoable(self):
         doc = FreeCAD.newDocument()
