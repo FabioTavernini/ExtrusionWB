@@ -31,6 +31,7 @@ FreeCAD's property editor.
   - [Wider profiles](#wider-profiles)
   - [B-Type (Bosch Rexroth compatible)](#b-type-bosch-rexroth-compatible)
 - [Corner brackets](#corner-brackets)
+- [T-nuts and screws](#t-nuts-and-screws)
 - [Limitations](#limitations)
 - [Roadmap](#roadmap)
 - [Running the tests](#running-the-tests)
@@ -48,8 +49,13 @@ FreeCAD's property editor.
   750 mm extrusion of that family and size directly. They are also in the
   menu, under **Extrusions → Generic** and **Extrusions → B-Type**.
 - **Corner Bracket** command: select two extrusions that meet at 90° and it
-  adds a gusset in every inside corner of the joint. The brackets follow
-  the profiles when they move (see [Corner brackets](#corner-brackets)).
+  adds a gusset in every inside corner of the joint, with its T-nuts and
+  screws. The brackets follow the profiles when they move (see
+  [Corner brackets](#corner-brackets)).
+- **T-Nut** and **Screw** commands to add hardware by hand: click a profile
+  face to drop a T-nut into the slot there, then add a screw into it (see
+  [T-nuts and screws](#t-nuts-and-screws)). Screws are made by the
+  [Fasteners workbench](https://github.com/shaise/FreeCAD_FastenersWB).
 - Parametric `Part::FeaturePython` object with these properties:
 
   | Property           | Type        | Notes                                   |
@@ -71,6 +77,11 @@ FreeCAD's property editor.
   length, placement and label.
 
 ## Installation
+
+**Dependency:** screws come from the **Fasteners** workbench. Install it
+from the Addon Manager (**Tools → Addon manager → Fasteners**).
+`package.xml` declares it as a dependency. Without it, everything works except screws: corner brackets
+get their T-nuts only, and the Report view says so.
 
 The addon uses the modern namespaced layout from the
 [FreeCAD Addon Academy](https://freecad.github.io/Addon-Academy/): code
@@ -167,8 +178,11 @@ they have not been tested.
    object shows as touched instead, press **Refresh** (Ctrl+R).
 4. Position the extrusion with its `Placement`, or with **Edit → Placement…**.
    To join two extrusions, place them so the end of one touches a side
-   face of the other, select both, and click **Corner Bracket**.
-5. Save, close and reopen the document. The extrusion is still editable.
+   face of the other, select both, and click **Corner Bracket**. The
+   bracket comes with its T-nuts and screws.
+5. To mount something on a profile, click its face where the fixing should
+   go, click **T-Nut**, then (with the nut selected) **Screw**.
+6. Save, close and reopen the document. Everything stays editable.
 
 Scripted use, in FreeCAD's Python console:
 
@@ -307,6 +321,45 @@ profile and length, so moving the post or changing its length carries the
 bracket along. If the base is moved away, the bracket stays on the post and
 a warning in the Report view says it no longer sits on the base.
 
+## T-nuts and screws
+
+**Bracket hardware.** **Corner Bracket** adds a T-nut and a screw for each
+bracket leg. The nut sits in the slot under the leg's bolt hole; the screw
+goes through the leg into it, its head on the leg. They appear under the
+bracket in the tree (bracket → T-nut → screw), follow it when the joint
+moves, and are deleted with it. Screws match Rexroth's fastener kits, as
+ISO 7380-1 button head screws (low enough that the two heads in one bracket
+clear each other): M4x8 for the 20 bracket, M6x14 for the 30, M8x16 for the
+40. If a profile's slot is too narrow for the kit's thread (a `Generic`
+4040's 8 mm slot takes M6, not M8), the nut and screw take the largest
+thread that fits, and the screw is shortened to stay off the slot floor.
+If a leg's bolt hole is not over a slot (a 2040 post on a 4040 base), that
+leg gets no hardware and the Report view says so.
+
+**T-Nut.** Click a side face of an extrusion where the nut should go
+(Ctrl+click for several) and click **T-Nut**. The nut goes into the nearest
+slot at that point. It is our own object, shaped from the slot it sits in
+(a neck in the opening, a body that bears against the lips, a bottom that
+follows the 45° taper), so it fits every profile and family:
+
+| Property     | Notes                                                       |
+|--------------|-------------------------------------------------------------|
+| `Profile`    | Extrusion the nut sits in; the nut moves with it            |
+| `Side`, `Slot` | Which slot, in the extrusion's local axes                 |
+| `Position`   | Distance along the extrusion from its start                 |
+| `Thread`     | `M4`, `M5`, `M6` or `M8`; defaults to the largest that fits |
+| `Bracket`, `BracketLeg` | Set for bracket nuts, which then follow the bracket's bolt hole (and `Side`, `Slot`, `Position` are read-only) |
+
+The thread is a plain hole of nominal diameter; no thread is modelled.
+
+**Screw.** Select T-nuts and click **Screw**: each gets an ISO 4762 socket
+head screw from the Fasteners workbench, attached to the nut with
+FreeCAD's attachment, so it follows the nut. Its head sits on the profile
+face, and its length is the longest standard one that stays off the slot
+floor. To mount a part, set the screw's `AttachmentOffset` Z to the part's
+thickness and pick a longer `Length`. Type, diameter and length are edited
+like any Fasteners screw.
+
 ## Limitations
 
 - `Generic` profiles have illustrative dimensions (see the warning above).
@@ -317,8 +370,11 @@ a warning in the Report view says it no longer sits on the base.
   (1N, 2N, 3N), no 45° or round profiles, and no 45 mm series.
 - Straight extrusions only; no end cuts, mitres, tapped holes or machining.
 - Corner brackets only for 90° joints where an end meets a side face; no
-  end-to-end or mitred joints, no hidden connectors, T-nuts or screws. No
-  frame generator, cut list or BOM.
+  end-to-end or mitred joints and no hidden connectors. No frame
+  generator, cut list or BOM.
+- T-nuts are simplified sliding nuts with a plain hole; no spring-loaded,
+  hammer-head or roll-in nuts. Screws attached to a nut keep their own
+  `Length` when the clamped thickness changes.
 - No custom task panel. Editing happens in the property editor.
 - Tested only on FreeCAD 1.1.4 on Linux.
 
@@ -332,7 +388,7 @@ Planned, not implemented:
 - Cross-sections from user-supplied closed sketches or DXF outlines.
 - Slot metadata (slot width, slot depth, core bore) for hardware placement.
 - Extrusions following selected sketch edges.
-- Hidden connectors, T-nuts and screws; brackets for more joint types.
+- Hidden connectors; brackets for more joint types.
 - Frame generation.
 - Cut lists and BOM export.
 
@@ -361,6 +417,10 @@ The script runs three stages:
      brackets found, that each touches both profiles without cutting into
      them, face selection, mixed sizes, one bracket per slot, following the
      post, save/reopen and undo.
+   - `tests/test_hardware_freecad.py` checks nut shapes in every slot, the
+     nut and screw positions, that nothing cuts into anything else, that
+     hardware follows the bracket and profile, and save/reopen. The screw
+     tests need the Fasteners workbench and are skipped without it.
    - `tests/test_extrusion_freecad.py` covers the document object: section
      area and volume against a hand calculation, recompute after edits,
      placement preservation, labels, the error state for zero length, undo,
@@ -369,12 +429,15 @@ The script runs three stages:
 3. **GUI smoke test** (`FreeCAD tools/gui_smoke_test.py`, `--gui` only). Starts
    the real FreeCAD GUI with `QT_QPA_PLATFORM=offscreen`, activates the
    workbench, checks its toolbars, menu and submenus, runs **Create Extrusion**
-   and every quick-insert button, then joins two extrusions with **Corner Bracket**
+   and every quick-insert button, joins two extrusions with **Corner Bracket**
+   (checking its hardware, tree grouping, undo and delete), and runs
+   **T-Nut** and **Screw**
    with and without an open document, undoes it, saves and reopens a
    document, and opens the v0.1 fixture.
 
 FreeCAD stages run against a temporary user-data and temp directory whose
-`Mod/` holds a symlink to the checkout, so FreeCAD finds the addon the same
+`Mod/` holds a symlink to the checkout (and to your installed Fasteners
+workbench, found automatically or set with `FASTENERS_DIR`), so FreeCAD finds the addon the same
 way it finds a real install, and your FreeCAD settings are left alone. The
 script uses `FreeCADCmd`/`FreeCAD` on `PATH`, then the Flathub flatpak. To
 use a specific build, set `FREECAD_BIN_DIR=/path/to/freecad/bin`.
@@ -394,10 +457,11 @@ Resources/Icons/                Workbench and command icons
 freecad/TSlotWorkbench/
     __init__.py                 Package marker and resource paths (no FreeCAD import)
     init_gui.py                 Workbench definition and registration
-    Commands.py                 Create Extrusion, quick-insert and Corner Bracket GUI commands
+    Commands.py                 Create Extrusion, quick-insert, Corner Bracket, T-Nut and Screw commands
     Extrusion.py                Part::FeaturePython proxy and make_extrusion()
     Brackets.py                 Corner bracket dimensions (pure Python, no FreeCAD)
     CornerBracket.py            Bracket shape, joint finding, proxy and make_corner_brackets()
+    Hardware.py                 T-nut object, slot lookup, Fasteners screws
     Profiles.py                 Profile and slot dimensions (pure Python, no FreeCAD)
     Geometry.py                 Cross-section face and extruded solid
 tests/                          unittest suites (pure Python and FreeCAD)

@@ -27,6 +27,8 @@ QUICK_CMDS = {
                "TSlot_CreateBType8080": ("B-Type", "8080")},
 }
 BRACKET_CMD = "TSlot_CornerBracket"
+NUT_CMD = "TSlot_TSlotNut"
+SCREW_CMD = "TSlot_Screw"
 QUICK_TOOLBARS = {f"T-Slot {group}" for group in QUICK_CMDS}
 
 
@@ -66,7 +68,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"} | QUICK_TOOLBARS)
         self.assertEqual(set(wb.listMenus()) - std_menus, {"Extrusions"})
         items = wb.getToolbarItems()
-        self.assertEqual(items["T-Slot"], [CMD, BRACKET_CMD])
+        self.assertEqual(items["T-Slot"], [CMD, BRACKET_CMD, NUT_CMD, SCREW_CMD])
         for group, commands in QUICK_CMDS.items():
             self.assertEqual(items[f"T-Slot {group}"], list(commands))
         for toolbars, menus in others.values():
@@ -163,15 +165,79 @@ class TestGui(unittest.TestCase):
         self.assertTrue(command.isActive())
         FreeCADGui.runCommand(BRACKET_CMD)
 
-        self.assertEqual(len(doc.Objects), 3)
-        bracket = doc.Objects[-1]
+        from freecad.TSlotWorkbench import CornerBracket, Hardware
+
+        (bracket,) = [o for o in doc.Objects if isinstance(getattr(o, "Proxy", None), CornerBracket.CornerBracket)]
         self.assertEqual(bracket.Label, "Corner bracket 40")
         self.assertTrue(bracket.isValid())
         self.assertTrue(bracket.ViewObject.Visibility)
         self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [bracket.Name])
+
+        # Hardware: two nuts under the bracket in the tree, a screw under each.
+        nuts = CornerBracket.nuts_of(bracket)
+        self.assertEqual(len(nuts), 2)
+        self.assertEqual(bracket.ViewObject.claimChildren(), nuts)
+        expected_objects = 5
+        if Hardware.fasteners_available():
+            for nut in nuts:
+                (screw,) = nut.ViewObject.claimChildren()
+                self.assertTrue(screw.isValid(), screw.getStatusString())
+                self.assertEqual(screw.Diameter, "M6")  # Generic 4040: 8 mm slot, not the kit M8
+            expected_objects = 7
+        self.assertEqual(len(doc.Objects), expected_objects)
+
         self.assertEqual(doc.UndoNames[0], "Corner Bracket")
         doc.undo()
         self.assertEqual(len(doc.Objects), 2)
+        doc.redo()
+        self.assertEqual(len(doc.Objects), expected_objects)
+
+        # Deleting the bracket in the GUI takes its hardware with it.
+        bracket.ViewObject.Proxy.onDelete(bracket.ViewObject, [])
+        doc.removeObject(bracket.Name)
+        self.assertEqual(len(doc.Objects), 2)
+
+    def test_nut_and_screw_commands(self):
+        doc = FreeCAD.newDocument()
+        FreeCADGui.runCommand(CMD)  # a 4040 along Z; its +X face is at X = 20
+        bar = doc.Objects[-1]
+        nut_cmd = FreeCADGui.Command.get(NUT_CMD)
+        screw_cmd = FreeCADGui.Command.get(SCREW_CMD)
+        for c in (nut_cmd, screw_cmd):
+            self.assertTrue(os.path.isfile(c.getInfo()["pixmap"]))
+
+        face = next(i for i, f in enumerate(bar.Shape.Faces, 1)
+                    if f.normalAt(0, 0).x > 0.99 and abs(f.Vertexes[0].Point.x - 20) < 1e-6)
+        FreeCADGui.Selection.clearSelection()
+        self.assertFalse(nut_cmd.isActive())
+        FreeCADGui.Selection.addSelection(doc.Name, bar.Name)
+        self.assertFalse(nut_cmd.isActive())  # whole object: no point to put it at
+        FreeCADGui.Selection.clearSelection()
+        point = bar.Shape.Faces[face - 1].CenterOfMass
+        FreeCADGui.Selection.addSelection(doc.Name, bar.Name, f"Face{face}", point.x, point.y, point.z)
+        self.assertTrue(nut_cmd.isActive())
+        FreeCADGui.runCommand(NUT_CMD)
+
+        nut = doc.Objects[-1]
+        self.assertEqual(nut.Label, "T-nut M6")  # Generic 4040: 8 mm slot
+        self.assertEqual(nut.Side, "+X")
+        self.assertAlmostEqual(nut.Position.Value, point.z, places=6)
+        self.assertTrue(nut.isValid())
+        self.assertEqual(doc.UndoNames[0], "T-Nut")
+        self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [nut.Name])
+
+        from freecad.TSlotWorkbench import Hardware
+
+        self.assertTrue(screw_cmd.isActive())
+        if not Hardware.fasteners_available():
+            return
+        FreeCADGui.runCommand(SCREW_CMD)
+        screw = doc.Objects[-1]
+        self.assertTrue(screw.isValid(), screw.getStatusString())
+        self.assertEqual(screw.Type, "ISO4762")
+        self.assertEqual(screw.Diameter, "M6")
+        self.assertEqual(nut.ViewObject.claimChildren(), [screw])
+        self.assertEqual(doc.UndoNames[0], "Screw")
 
     def test_create_is_undoable(self):
         doc = FreeCAD.newDocument()

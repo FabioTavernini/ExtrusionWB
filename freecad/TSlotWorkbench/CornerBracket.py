@@ -335,6 +335,50 @@ def make_bracket_shape(bracket):
     return shape.Solids[0]
 
 
+class ViewProviderCornerBracket:
+    """Shows the bracket's T-nuts (and their screws) under it in the tree."""
+
+    def __init__(self, vobj):
+        vobj.Proxy = self
+
+    def attach(self, vobj):
+        self.Object = vobj.Object
+
+    def getIcon(self):
+        from . import icon_path
+
+        return icon_path("CornerBracket.svg")
+
+    def claimChildren(self):
+        return nuts_of(self.Object)
+
+    def onDelete(self, vobj, subelements):
+        from . import Hardware
+
+        doc = vobj.Object.Document
+        for nut in nuts_of(vobj.Object):
+            for screw in Hardware.screws_of(nut):
+                doc.removeObject(screw.Name)
+            doc.removeObject(nut.Name)
+        return True
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+    __getstate__ = dumps
+    __setstate__ = loads
+
+
+def nuts_of(bracket_obj):
+    """The T-nuts that belong to a bracket."""
+    from . import Hardware
+
+    return [o for o in bracket_obj.InList if Hardware.is_nut(o) and o.Bracket == bracket_obj]
+
+
 def make_corner_bracket(doc, corner, size=None, name="CornerBracket"):
     """Add a bracket at ``corner`` to ``doc`` and return it. The caller recomputes."""
     bracket = Brackets.get_bracket(size) if size else default_bracket(corner.post, corner.base)
@@ -348,16 +392,23 @@ def make_corner_bracket(doc, corner, size=None, name="CornerBracket"):
     obj.BracketSize = bracket.size
     obj.Label = f"Corner bracket {bracket.size}"
     if FreeCAD.GuiUp:
-        obj.ViewObject.Proxy = 0
+        ViewProviderCornerBracket(obj.ViewObject)
     return obj
 
 
-def make_corner_brackets(doc, a, b, faces=()):
+def make_corner_brackets(doc, a, b, faces=(), hardware=False):
     """Add a bracket in every inside corner between ``a`` and ``b``.
 
     ``faces``, a list of (object, face), keeps only the corners whose
-    bracket sits on all of them. Returns the new objects (possibly none).
-    The caller recomputes.
+    bracket sits on all of them. With ``hardware``, each bracket also gets
+    its T-nuts and (with the Fasteners workbench) screws. Returns the new
+    brackets (possibly none). The caller recomputes.
     """
     corners = filter_by_faces(find_corners(a, b), faces)
-    return [make_corner_bracket(doc, c) for c in corners]
+    brackets = [make_corner_bracket(doc, c) for c in corners]
+    if hardware:
+        from . import Hardware
+
+        for obj in brackets:
+            Hardware.make_bracket_hardware(doc, obj)
+    return brackets

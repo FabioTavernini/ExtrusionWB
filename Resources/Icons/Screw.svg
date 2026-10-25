@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Screw into a T-nut</title>
+  <!-- Nut -->
+  <path fill="#5a8f3c" stroke="#2d4a1d" stroke-width="2" stroke-linejoin="round"
+        d="M20 44 H44 V52 L38 58 H26 L20 52 Z"/>
+  <!-- Screw: head and threaded shank -->
+  <path fill="#3c5a9b" stroke="#1e2e52" stroke-width="2" stroke-linejoin="round" d="M18 6 H46 V18 H18 Z"/>
+  <path fill="#6f8ccc" stroke="#1e2e52" stroke-width="2" stroke-linejoin="round" d="M27 18 H37 V56 L32 60 L27 56 Z"/>
+  <path fill="none" stroke="#1e2e52" stroke-width="1.5" d="M27 26 L37 23 M27 33 L37 30 M27 40 L37 37 M27 47 L37 44"/>
+  <path fill="#1e2e52" d="M28 9 H36 V15 H28 Z"/>
+</svg>

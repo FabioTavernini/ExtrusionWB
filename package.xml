@@ -3,7 +3,7 @@
 <package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
 
     <name>TSlotWorkbench</name>
-    <description>Parametric metric T-slot aluminium extrusions (2020, 3030, 4040) with undercut T-slots and a centre bore. Generic profiles use illustrative dimensions, not manufacturer specifications.</description>
+    <description>Parametric metric T-slot aluminium extrusions (Generic and Bosch Rexroth compatible B-Type, 2020 to 8080), corner brackets that snap into 90 degree joints, and T-nuts with screws from the Fasteners workbench.</description>
     <version>0.2.0</version>
     <date>2026-10-18</date>
 
@@ -13,6 +13,9 @@
     <icon>Resources/Icons/Logo.svg</icon>
 
     <freecadmin>1.1.0</freecadmin>
+
+    <!-- Screws come from the Fasteners workbench; without it, everything but screws still works. -->
+    <depend>fasteners</depend>
 
     <tag>extrusion</tag>
     <tag>aluminium profile</tag>

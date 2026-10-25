@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>T-nut</title>
+  <!-- Slot in a profile, seen end on -->
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round"
+        d="M2 10 H24 V20 H12 V30 L22 40 H42 L52 30 V20 H40 V10 H62 V60 H2 Z"/>
+  <!-- Nut in the slot, with its hole -->
+  <path fill="#5a8f3c" stroke="#2d4a1d" stroke-width="2" stroke-linejoin="round"
+        d="M26 14 H38 V22 H49 V30 L42 36 H22 L15 30 V22 H26 Z"/>
+  <path fill="#ffffff" stroke="#2d4a1d" stroke-width="1.5" d="M29 14 H35 V36 H29 Z"/>
+</svg>

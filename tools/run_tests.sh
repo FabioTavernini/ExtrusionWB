@@ -11,6 +11,10 @@
 # contains a symlink to this checkout, so FreeCAD discovers the addon exactly
 # as it would a real install, without touching your own FreeCAD setup.
 #
+# The Fasteners workbench (needed for screws) is linked into that Mod/ too,
+# from FASTENERS_DIR or your own FreeCAD Mod directory; without it, the
+# screw tests are skipped.
+#
 # FREECAD_BIN_DIR or the flatpak selects FreeCAD. By default FreeCADCmd /
 # FreeCAD on PATH are used, falling back to the Flathub flatpak.
 #
@@ -32,6 +36,21 @@ trap 'rm -rf "$sandbox"' EXIT
 mkdir -p "$sandbox/data/Mod" "$sandbox/tmp"
 ln -s "$repo" "$sandbox/data/Mod/TSlotWorkbench"
 
+fasteners="${FASTENERS_DIR:-}"
+if [[ -z "$fasteners" ]]; then
+    for dir in "$HOME"/.local/share/FreeCAD/*/Mod/fasteners \
+               "$HOME"/.var/app/org.freecad.FreeCAD/data/FreeCAD/*/Mod/fasteners \
+               "$HOME"/Library/Application\ Support/FreeCAD/*/Mod/fasteners; do
+        [[ -f "$dir/FastenersCmd.py" ]] && fasteners="$dir"
+    done
+fi
+if [[ -n "$fasteners" ]]; then
+    echo "== Using the Fasteners workbench from $fasteners"
+    ln -s "$fasteners" "$sandbox/data/Mod/fasteners"
+else
+    echo "== Fasteners workbench not found: screw tests will be skipped" >&2
+fi
+
 env_vars=(
     "FREECAD_USER_DATA=$sandbox/data"
     "FREECAD_USER_TEMP=$sandbox/tmp"
@@ -48,6 +67,7 @@ run_freecad() {
         env "${env_vars[@]}" "$binary" "$script"
     elif flatpak info org.freecad.FreeCAD >/dev/null 2>&1; then
         local args=(--filesystem="$sandbox" --filesystem="$repo")
+        [[ -n "$fasteners" ]] && args+=(--filesystem="$fasteners")
         for v in "${env_vars[@]}"; do args+=(--env="$v"); done
         flatpak run "${args[@]}" --command="$binary" org.freecad.FreeCAD "$script"
     else

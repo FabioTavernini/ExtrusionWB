@@ -77,8 +77,8 @@ class CornerBracketCommand:
         return {
             "MenuText": "Corner Bracket",
             "ToolTip": "Select two extrusions that meet at 90 degrees (the end of one touching a side "
-                       "of the other) to add a bracket in every inside corner of the joint. Also select "
-                       "the faces a bracket should sit on to add just that one.",
+                       "of the other) to add a bracket in every inside corner of the joint, with its "
+                       "T-nuts and screws. Also select the faces a bracket should sit on to add just that one.",
             "Pixmap": icon_path("CornerBracket.svg"),
         }
 
@@ -86,7 +86,7 @@ class CornerBracketCommand:
         return len(_selected_extrusions()[0]) == 2
 
     def Activated(self):
-        from . import CornerBracket
+        from . import CornerBracket, Hardware
 
         extrusions, faces = _selected_extrusions()
         if len(extrusions) != 2:
@@ -95,7 +95,7 @@ class CornerBracketCommand:
         doc = a.Document
         doc.openTransaction("Corner Bracket")
         try:
-            brackets = CornerBracket.make_corner_brackets(doc, a, b, faces)
+            brackets = CornerBracket.make_corner_brackets(doc, a, b, faces, hardware=True)
             if not brackets:
                 raise RuntimeError(CornerBracket.explain_no_corner(a, b, faces))
             doc.recompute()
@@ -107,10 +107,114 @@ class CornerBracketCommand:
             FreeCAD.Console.PrintError(f"Corner Bracket failed: {exc}\n")
             return
         doc.commitTransaction()
+        if not Hardware.fasteners_available():
+            FreeCAD.Console.PrintWarning(f"Corner Bracket: T-nuts added without screws. {Hardware.FASTENERS_MISSING}\n")
 
         FreeCADGui.Selection.clearSelection()
         for obj in brackets:
             FreeCADGui.Selection.addSelection(doc.Name, obj.Name)
+
+
+class TSlotNutCommand:
+    """Add a T-nut in the slot under each clicked point on an extrusion's face."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "T-Nut",
+            "ToolTip": "Click a side face of an extrusion where the nut should go (Ctrl+click for more): "
+                       "a T-nut is added in the nearest slot at that point. Move it later with its Position.",
+            "Pixmap": icon_path("TSlotNut.svg"),
+        }
+
+    def IsActive(self):
+        return bool(_picked_faces())
+
+    def Activated(self):
+        from . import Hardware
+
+        picks = _picked_faces()
+        doc = picks[0][0].Document
+        doc.openTransaction("T-Nut")
+        try:
+            nuts = []
+            for obj, face, point in picks:
+                normal = face.normalAt(*face.Surface.parameter(point))
+                side, slot, position, _ = Hardware.locate_in_slot(obj, point, normal, snap=True)
+                nuts.append(Hardware.make_nut(doc, obj, side, slot, position))
+            doc.recompute()
+            for nut in nuts:
+                if not nut.isValid():
+                    raise RuntimeError("; ".join(nut.getStatusString().splitlines()) or "recompute failed")
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintError(f"T-Nut failed: {exc}\n")
+            return
+        doc.commitTransaction()
+
+        FreeCADGui.Selection.clearSelection()
+        for nut in nuts:
+            FreeCADGui.Selection.addSelection(doc.Name, nut.Name)
+
+
+class ScrewCommand:
+    """Add a Fasteners screw into each selected T-nut."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Screw",
+            "ToolTip": "Select T-nuts to screw an ISO 4762 socket head screw into each (needs the Fasteners "
+                       "workbench). Set its AttachmentOffset Z to the thickness of the part you are mounting, "
+                       "and pick its Length.",
+            "Pixmap": icon_path("Screw.svg"),
+        }
+
+    def IsActive(self):
+        return bool(_selected_nuts())
+
+    def Activated(self):
+        from . import Hardware
+
+        nuts = _selected_nuts()
+        if not Hardware.fasteners_available():
+            FreeCAD.Console.PrintError(f"Screw failed: {Hardware.FASTENERS_MISSING}\n")
+            return
+        doc = nuts[0].Document
+        doc.openTransaction("Screw")
+        try:
+            screws = [Hardware.make_screw(doc, nut) for nut in nuts]
+            doc.recompute()
+            for screw in screws:
+                if not screw.isValid():
+                    raise RuntimeError("; ".join(screw.getStatusString().splitlines()) or "recompute failed")
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintError(f"Screw failed: {exc}\n")
+            return
+        doc.commitTransaction()
+
+        FreeCADGui.Selection.clearSelection()
+        for screw in screws:
+            FreeCADGui.Selection.addSelection(doc.Name, screw.Name)
+
+
+def _picked_faces():
+    """Selected faces of extrusions, as (extrusion, face, picked point)."""
+    from .Extrusion import Extrusion
+
+    picks = []
+    for sel in FreeCADGui.Selection.getSelectionEx():
+        if not isinstance(getattr(sel.Object, "Proxy", None), Extrusion):
+            continue
+        for sub, point in zip(sel.SubObjects, sel.PickedPoints):
+            if sub.ShapeType == "Face":
+                picks.append((sel.Object, sub, point))
+    return picks
+
+
+def _selected_nuts():
+    from .Hardware import TSlotNut
+
+    return [o for o in FreeCADGui.Selection.getSelection() if isinstance(getattr(o, "Proxy", None), TSlotNut)]
 
 
 def _selected_extrusions():
@@ -128,12 +232,14 @@ def _selected_extrusions():
     return extrusions, faces
 
 
-COMMANDS = ["TSlot_CreateExtrusion", "TSlot_CornerBracket"]
+COMMANDS = ["TSlot_CreateExtrusion", "TSlot_CornerBracket", "TSlot_TSlotNut", "TSlot_Screw"]
 # family -> its quick-insert command names, in button order.
 QUICK_COMMANDS = {}
 
 FreeCADGui.addCommand("TSlot_CreateExtrusion", CreateExtrusionCommand())
 FreeCADGui.addCommand("TSlot_CornerBracket", CornerBracketCommand())
+FreeCADGui.addCommand("TSlot_TSlotNut", TSlotNutCommand())
+FreeCADGui.addCommand("TSlot_Screw", ScrewCommand())
 for _family, (_name, _sizes) in QUICK_GROUPS.items():
     QUICK_COMMANDS[_family] = []
     for _size in _sizes:
