@@ -30,6 +30,7 @@ FreeCAD's property editor.
   - [Generic](#generic)
   - [Wider profiles](#wider-profiles)
   - [B-Type (Bosch Rexroth compatible)](#b-type-bosch-rexroth-compatible)
+- [Corner brackets](#corner-brackets)
 - [Limitations](#limitations)
 - [Roadmap](#roadmap)
 - [Running the tests](#running-the-tests)
@@ -46,6 +47,9 @@ FreeCAD's property editor.
   **8080** for both `Generic` (green) and `B-Type` (blue). Each adds a
   750 mm extrusion of that family and size directly. They are also in the
   menu, under **Extrusions → Generic** and **Extrusions → B-Type**.
+- **Corner Bracket** command: select two extrusions that meet at 90° and it
+  adds a gusset in every inside corner of the joint. The brackets follow
+  the profiles when they move (see [Corner brackets](#corner-brackets)).
 - Parametric `Part::FeaturePython` object with these properties:
 
   | Property           | Type        | Notes                                   |
@@ -162,6 +166,8 @@ they have not been tested.
    recompute. FreeCAD usually recomputes right after a property edit; if the
    object shows as touched instead, press **Refresh** (Ctrl+R).
 4. Position the extrusion with its `Placement`, or with **Edit → Placement…**.
+   To join two extrusions, place them so the end of one touches a side
+   face of the other, select both, and click **Corner Bracket**.
 5. Save, close and reopen the document. The extrusion is still editable.
 
 Scripted use, in FreeCAD's Python console:
@@ -245,6 +251,62 @@ solid: the hollow chambers of the real profiles, the fillets, and the
 shallow recess at each slot mouth are not modelled. The 4040 is Rexroth's
 light `40x40L`. There is no 45x45 yet, for lack of a dimension source.
 
+## Corner brackets
+
+A corner bracket is a die-cast style gusset: two legs at 90° with closed
+triangular sides and a slotted bolt hole in each leg. It comes in sizes
+`20`, `30` and `40`, one per profile series, with the leg length, width,
+wall thickness and bolt slot of the matching Rexroth gussets:
+
+| Parameter (mm)              | 20   | 30   | 40   |
+|-----------------------------|-----:|-----:|-----:|
+| Leg length                  | 18   | 27   | 36   |
+| Width                       | 18   | 28   | 38   |
+| Wall thickness              | 3    | 6    | 5.5  |
+| Bolt slot width             | 4.5  | 6.4  | 8.7  |
+| Bolt slot, from the corner  | 7.7–14.7 | 10–20 | 9.5–29.5 |
+
+The side walls are as thick as the legs (the catalogue does not give
+them), and the ribs, centring lugs and fillets are left out. The same
+brackets are used for `Generic` and `B-Type` profiles.
+
+**Adding brackets.** Two extrusions form a joint when the end of one (the
+*post*) touches a side face of the other (the *base*) and their axes are at
+90°. Select both and click **Corner Bracket**: a bracket goes into every
+inside corner where it fits on the base face, one per slot. An L corner
+gets one bracket, a T joint two, and a wide post (2040, …) one per slot
+on each side. To add a single bracket, also select the faces it should sit
+on (Ctrl+click a face of the post, of the base, or both). The size is the
+largest that fits the smaller of the two profiles; change it with
+`BracketSize`.
+
+**If no bracket is added**, the Report view says why:
+
+- *"… but no bracket there sits on the selected face(s)"*: faces are
+  part of the selection, often left over from clicking in the 3D view
+  (FreeCAD keeps them when you then pick the object in the tree). Click
+  empty space to clear the selection, then select just the two extrusions.
+- *"Closest is … but there is a 0.300 mm gap"* (or the end goes into the
+  face, is off the face, or is tilted): the profiles only look aligned.
+  Joints must be exact to within 0.001 mm, so dragging by eye usually
+  misses. Type exact values into `Placement` instead.
+
+**Following the joint.** The bracket stores its corner, not a position:
+
+| Property      | Notes                                                    |
+|---------------|----------------------------------------------------------|
+| `Post`        | Extrusion whose end meets the base; the bracket follows it |
+| `Base`        | Extrusion whose side face the post's end touches         |
+| `PostEnd`     | `Start` or `End` of the post                             |
+| `PostSide`    | `+X`, `-X`, `+Y`, `-Y`: the post side, in its local axes |
+| `Slot`        | Slot on that side, counted from 0                        |
+| `BracketSize` | `20`, `30` or `40`                                       |
+
+Its `Placement` is read-only and recomputed from the post's placement,
+profile and length, so moving the post or changing its length carries the
+bracket along. If the base is moved away, the bracket stays on the post and
+a warning in the Report view says it no longer sits on the base.
+
 ## Limitations
 
 - `Generic` profiles have illustrative dimensions (see the warning above).
@@ -254,7 +316,9 @@ light `40x40L`. There is no 45x45 yet, for lack of a dimension source.
 - Square units and grids of them only: no profiles with fewer slots
   (1N, 2N, 3N), no 45° or round profiles, and no 45 mm series.
 - Straight extrusions only; no end cuts, mitres, tapped holes or machining.
-- No hardware (brackets, T-nuts), frame generator, cut list or BOM.
+- Corner brackets only for 90° joints where an end meets a side face; no
+  end-to-end or mitred joints, no hidden connectors, T-nuts or screws. No
+  frame generator, cut list or BOM.
 - No custom task panel. Editing happens in the property editor.
 - Tested only on FreeCAD 1.1.4 on Linux.
 
@@ -268,7 +332,7 @@ Planned, not implemented:
 - Cross-sections from user-supplied closed sketches or DXF outlines.
 - Slot metadata (slot width, slot depth, core bore) for hardware placement.
 - Extrusions following selected sketch edges.
-- Automatic corner brackets and connectors.
+- Hidden connectors, T-nuts and screws; brackets for more joint types.
 - Frame generation.
 - Cut lists and BOM export.
 
@@ -283,8 +347,9 @@ The script runs three stages:
 
 1. **Pure Python** (`python3 -m unittest discover -s tests`). `tests/test_profiles.py`
    covers the profile catalogue, lookups, slot and wall consistency checks,
-   invalid definitions and length validation. Tests that need FreeCAD are reported as *skipped* here, not
-   faked.
+   invalid definitions and length validation; `tests/test_brackets.py` does
+   the same for the corner bracket catalogue. Tests that need FreeCAD are
+   reported as *skipped* here, not faked.
 2. **Headless FreeCAD** (`FreeCADCmd tools/freecad_test_runner.py`). Runs the
    whole `tests/` directory inside FreeCAD:
    - `tests/test_geometry_freecad.py` probes the actual shape: valid single
@@ -292,6 +357,10 @@ The script runs three stages:
      every side, a line section through the opening and one through the
      cavity, proving each slot is undercut; the bore runs through the full
      length; four-fold symmetry; the sizes differ; regeneration is repeatable.
+   - `tests/test_bracket_freecad.py` builds L and T joints and checks the
+     brackets found, that each touches both profiles without cutting into
+     them, face selection, mixed sizes, one bracket per slot, following the
+     post, save/reopen and undo.
    - `tests/test_extrusion_freecad.py` covers the document object: section
      area and volume against a hand calculation, recompute after edits,
      placement preservation, labels, the error state for zero length, undo,
@@ -300,7 +369,7 @@ The script runs three stages:
 3. **GUI smoke test** (`FreeCAD tools/gui_smoke_test.py`, `--gui` only). Starts
    the real FreeCAD GUI with `QT_QPA_PLATFORM=offscreen`, activates the
    workbench, checks its toolbars, menu and submenus, runs **Create Extrusion**
-   and every quick-insert button
+   and every quick-insert button, then joins two extrusions with **Corner Bracket**
    with and without an open document, undoes it, saves and reopens a
    document, and opens the v0.1 fixture.
 
@@ -325,8 +394,10 @@ Resources/Icons/                Workbench and command icons
 freecad/TSlotWorkbench/
     __init__.py                 Package marker and resource paths (no FreeCAD import)
     init_gui.py                 Workbench definition and registration
-    Commands.py                 Create Extrusion and quick-insert GUI commands
+    Commands.py                 Create Extrusion, quick-insert and Corner Bracket GUI commands
     Extrusion.py                Part::FeaturePython proxy and make_extrusion()
+    Brackets.py                 Corner bracket dimensions (pure Python, no FreeCAD)
+    CornerBracket.py            Bracket shape, joint finding, proxy and make_corner_brackets()
     Profiles.py                 Profile and slot dimensions (pure Python, no FreeCAD)
     Geometry.py                 Cross-section face and extruded solid
 tests/                          unittest suites (pure Python and FreeCAD)

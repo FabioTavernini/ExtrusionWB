@@ -70,11 +70,70 @@ class CreateExtrusionCommand:
         FreeCADGui.SendMsgToActiveView("ViewFit")
 
 
-COMMANDS = ["TSlot_CreateExtrusion"]
+class CornerBracketCommand:
+    """Add corner brackets to the joint between two selected extrusions."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Corner Bracket",
+            "ToolTip": "Select two extrusions that meet at 90 degrees (the end of one touching a side "
+                       "of the other) to add a bracket in every inside corner of the joint. Also select "
+                       "the faces a bracket should sit on to add just that one.",
+            "Pixmap": icon_path("CornerBracket.svg"),
+        }
+
+    def IsActive(self):
+        return len(_selected_extrusions()[0]) == 2
+
+    def Activated(self):
+        from . import CornerBracket
+
+        extrusions, faces = _selected_extrusions()
+        if len(extrusions) != 2:
+            return
+        a, b = extrusions
+        doc = a.Document
+        doc.openTransaction("Corner Bracket")
+        try:
+            brackets = CornerBracket.make_corner_brackets(doc, a, b, faces)
+            if not brackets:
+                raise RuntimeError(CornerBracket.explain_no_corner(a, b, faces))
+            doc.recompute()
+            for obj in brackets:
+                if not obj.isValid():
+                    raise RuntimeError("; ".join(obj.getStatusString().splitlines()) or "recompute failed")
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintError(f"Corner Bracket failed: {exc}\n")
+            return
+        doc.commitTransaction()
+
+        FreeCADGui.Selection.clearSelection()
+        for obj in brackets:
+            FreeCADGui.Selection.addSelection(doc.Name, obj.Name)
+
+
+def _selected_extrusions():
+    """The distinct selected extrusions, and the selected faces as (object, face)."""
+    from .Extrusion import Extrusion
+
+    extrusions, faces = [], []
+    for sel in FreeCADGui.Selection.getSelectionEx():
+        obj = sel.Object
+        if not isinstance(getattr(obj, "Proxy", None), Extrusion):
+            continue
+        if obj not in extrusions:
+            extrusions.append(obj)
+        faces.extend((obj, sub) for sub in sel.SubObjects if sub.ShapeType == "Face")
+    return extrusions, faces
+
+
+COMMANDS = ["TSlot_CreateExtrusion", "TSlot_CornerBracket"]
 # family -> its quick-insert command names, in button order.
 QUICK_COMMANDS = {}
 
 FreeCADGui.addCommand("TSlot_CreateExtrusion", CreateExtrusionCommand())
+FreeCADGui.addCommand("TSlot_CornerBracket", CornerBracketCommand())
 for _family, (_name, _sizes) in QUICK_GROUPS.items():
     QUICK_COMMANDS[_family] = []
     for _size in _sizes:

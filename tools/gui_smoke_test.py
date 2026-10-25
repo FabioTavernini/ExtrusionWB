@@ -26,6 +26,7 @@ QUICK_CMDS = {
                "TSlot_CreateBType4040": ("B-Type", "4040"),
                "TSlot_CreateBType8080": ("B-Type", "8080")},
 }
+BRACKET_CMD = "TSlot_CornerBracket"
 QUICK_TOOLBARS = {f"T-Slot {group}" for group in QUICK_CMDS}
 
 
@@ -65,7 +66,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"} | QUICK_TOOLBARS)
         self.assertEqual(set(wb.listMenus()) - std_menus, {"Extrusions"})
         items = wb.getToolbarItems()
-        self.assertEqual(items["T-Slot"], [CMD])
+        self.assertEqual(items["T-Slot"], [CMD, BRACKET_CMD])
         for group, commands in QUICK_CMDS.items():
             self.assertEqual(items[f"T-Slot {group}"], list(commands))
         for toolbars, menus in others.values():
@@ -141,6 +142,36 @@ class TestGui(unittest.TestCase):
                     self.assertAlmostEqual(bb.ZLength, 750.0)
                     self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [obj.Name])
         self.assertEqual(len(doc.Objects), count)
+
+    def test_corner_bracket(self):
+        """Select two extrusions forming an L, run Corner Bracket."""
+        doc = FreeCAD.newDocument()
+        command = FreeCADGui.Command.get(BRACKET_CMD)
+        self.assertTrue(os.path.isfile(command.getInfo()["pixmap"]))
+        FreeCADGui.runCommand(CMD)
+        base = doc.Objects[-1]
+        base.Placement = FreeCAD.Placement(FreeCAD.Vector(), FreeCAD.Rotation(FreeCAD.Vector(0, 1, 0), 90))
+        FreeCADGui.runCommand(CMD)
+        post = doc.Objects[-1]
+        post.Placement.Base = FreeCAD.Vector(20, 0, 20)
+        doc.recompute()
+
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(doc.Name, base.Name)
+        self.assertFalse(command.isActive())  # needs two extrusions
+        FreeCADGui.Selection.addSelection(doc.Name, post.Name)
+        self.assertTrue(command.isActive())
+        FreeCADGui.runCommand(BRACKET_CMD)
+
+        self.assertEqual(len(doc.Objects), 3)
+        bracket = doc.Objects[-1]
+        self.assertEqual(bracket.Label, "Corner bracket 40")
+        self.assertTrue(bracket.isValid())
+        self.assertTrue(bracket.ViewObject.Visibility)
+        self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [bracket.Name])
+        self.assertEqual(doc.UndoNames[0], "Corner Bracket")
+        doc.undo()
+        self.assertEqual(len(doc.Objects), 2)
 
     def test_create_is_undoable(self):
         doc = FreeCAD.newDocument()

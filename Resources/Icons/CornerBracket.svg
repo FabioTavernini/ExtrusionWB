@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Corner bracket</title>
+  <!-- Two profiles meeting at 90 degrees, seen from the side -->
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 4 H18 V46 H4 Z"/>
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 46 H60 V60 H4 Z"/>
+  <!-- Bracket in the inside corner -->
+  <path fill="#e0a030" stroke="#7a5310" stroke-width="2" stroke-linejoin="round" d="M18 16 V46 H48 V40 H28 L24 36 V16 Z"/>
+  <path fill="#f2c060" stroke="#7a5310" stroke-width="2" stroke-linejoin="round" d="M24 16 V36 L28 40 H48 Z"/>
+</svg>
