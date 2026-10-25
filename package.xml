@@ -15,7 +15,7 @@
     <freecadmin>1.1.0</freecadmin>
 
     <!-- Screws come from the Fasteners workbench; without it, everything but screws still works. -->
-    <depend>fasteners</depend>
+    <depend type="addon">fasteners</depend>
 
     <tag>extrusion</tag>
     <tag>aluminium profile</tag>
