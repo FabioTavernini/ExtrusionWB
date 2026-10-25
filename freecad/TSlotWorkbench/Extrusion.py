@@ -19,7 +19,8 @@ from . import Geometry, Profiles
 #   2: v0.2, T-slot cross-section
 SCHEMA_VERSION = 2
 
-_FAMILY_DOC = "Profile family. 'Generic' uses illustrative dimensions, not a manufacturer's specification."
+_FAMILY_DOC = ("Profile family. 'Generic' uses illustrative dimensions, not a manufacturer's specification; "
+               "'B-Type' is Bosch Rexroth compatible, with real slot dimensions but a solid core.")
 
 # Property attribute bits for addProperty(): ReadOnly | Output. Output keeps
 # the value from touching the object when execute() writes it.
@@ -69,6 +70,18 @@ class Extrusion:
         if abs(obj.CrossSectionArea.Value - face.Area) > 1e-9:
             obj.CrossSectionArea = face.Area
         self._update_label(obj, profile, length)
+
+    def onChanged(self, obj, prop):
+        # Offer the sizes of the newly chosen family, keeping the current
+        # size when that family has it too. Restoring is handled by
+        # onDocumentRestored.
+        if prop != "ProfileFamily" or "Restore" in obj.State or not hasattr(obj, "ProfileSize"):
+            return
+        try:
+            choices = Profiles.sizes(obj.ProfileFamily)
+        except Profiles.ProfileError:
+            return
+        _set_choices(obj, "ProfileSize", choices)
 
     def onDocumentRestored(self, obj):
         if not hasattr(obj, "SchemaVersion"):

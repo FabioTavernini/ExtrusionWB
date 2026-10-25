@@ -31,8 +31,10 @@ def rotate(x, y, quarter_turns):
 @unittest.skipIf(FreeCAD is None, "FreeCAD is not available")
 class TestGeometry(unittest.TestCase):
 
+    FAMILY = "Generic"
+
     def profile(self, size):
-        return Profiles.get_profile("Generic", size)
+        return Profiles.get_profile(self.FAMILY, size)
 
     def side_point(self, profile, side, u, v, z=0.0):
         """Point at (u along the side, v deep from the face) on side 0..3 (top, right, bottom, left)."""
@@ -176,6 +178,80 @@ class TestGeometry(unittest.TestCase):
         for length in (0, -10):
             with self.assertRaises(Profiles.ProfileError):
                 Geometry.create_extrusion_shape(self.profile("4040"), length)
+
+
+class TestBTypeGeometry(TestGeometry):
+    """The same checks for the B-Type profiles."""
+
+    FAMILY = "B-Type"
+
+
+@unittest.skipIf(FreeCAD is None, "FreeCAD is not available")
+class TestMultiUnitGeometry(unittest.TestCase):
+    """Wider profiles: a slot on every outer unit edge, a bore in every unit."""
+
+    CASES = [(family, size) for family in ("Generic", "B-Type")
+             for size in ("2040", "2060", "3090", "4080", "40120", "8080")]
+
+    def slot_gaps(self, profile, face, along_x, offset, v):
+        """Empty stretches of a line along one long side, ``v`` deep from it.
+
+        ``along_x`` picks the top/bottom face (line along X) or a side face
+        (line along Y); ``offset`` is that face's coordinate.
+        """
+        inward = -1.0 if offset > 0 else 1.0
+        c = offset + inward * v
+        if along_x:
+            a, b = FreeCAD.Vector(-profile.width / 2.0, c, 0), FreeCAD.Vector(profile.width / 2.0, c, 0)
+        else:
+            a, b = FreeCAD.Vector(c, -profile.height / 2.0, 0), FreeCAD.Vector(c, profile.height / 2.0, 0)
+        return Part.makeLine(a, b).cut(face).Edges
+
+    def test_valid_solid_and_size(self):
+        for family, size in self.CASES:
+            with self.subTest(family=family, size=size):
+                p = Profiles.get_profile(family, size)
+                shape = Geometry.create_extrusion_shape(p, 300)
+                self.assertTrue(shape.isValid())
+                self.assertEqual(len(shape.Solids), 1)
+                shape.check(True)
+                bb = shape.BoundBox
+                self.assertAlmostEqual(bb.XLength, p.width, delta=TOL)
+                self.assertAlmostEqual(bb.YLength, p.height, delta=TOL)
+                self.assertAlmostEqual(bb.Center.x, 0.0, delta=TOL)
+                self.assertAlmostEqual(bb.Center.y, 0.0, delta=TOL)
+
+    def test_one_slot_per_unit_edge(self):
+        for family, size in self.CASES:
+            p = Profiles.get_profile(family, size)
+            s = p.slot
+            face = Geometry.create_profile_face(p)
+            for along_x, offset, units in ((True, p.height / 2.0, p.columns), (True, -p.height / 2.0, p.columns),
+                                           (False, p.width / 2.0, p.rows), (False, -p.width / 2.0, p.rows)):
+                with self.subTest(family=family, size=size, along_x=along_x, offset=offset):
+                    openings = self.slot_gaps(p, face, along_x, offset, s.lip / 2.0)
+                    cavities = self.slot_gaps(p, face, along_x, offset, s.lip + s.cavity_height / 2.0)
+                    self.assertEqual(len(openings), units)
+                    self.assertEqual(len(cavities), units)
+                    for e in openings:
+                        self.assertAlmostEqual(e.Length, s.opening, delta=TOL)
+                    for e in cavities:
+                        self.assertAlmostEqual(e.Length, s.cavity_width, delta=TOL)
+
+    def test_one_bore_per_unit(self):
+        for family, size in self.CASES:
+            with self.subTest(family=family, size=size):
+                p = Profiles.get_profile(family, size)
+                face = Geometry.create_profile_face(p)
+                self.assertEqual(len(face.Wires), 1 + p.columns * p.rows)
+                self.assertEqual(len(face.OuterWire.Edges), 4 + 20 * (p.columns + p.rows))
+                for x, y in Geometry.bore_centres(p):
+                    self.assertFalse(face.isInside(FreeCAD.Vector(x, y, 0), TOL, True))
+                    self.assertTrue(face.isInside(FreeCAD.Vector(x + p.bore_diameter / 2.0 + 0.5, y, 0), TOL, True))
+
+    def test_rows_run_along_y(self):
+        p = Profiles.get_profile("B-Type", "2040")
+        self.assertEqual(sorted(Geometry.bore_centres(p)), [(0.0, -10.0), (0.0, 10.0)])
 
 
 if __name__ == "__main__":

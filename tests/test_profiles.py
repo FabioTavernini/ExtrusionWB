@@ -16,40 +16,79 @@ EXPECTED = {
     "4040": (40.0, 8.0, 16.0, 9.0, 7.0),
 }
 
+# B-Type dimensions (see Profiles.py for the source).
+EXPECTED_B_TYPE = {
+    # size: (outer, opening, cavity width, depth, bore)
+    "2020": (20.0, 6.2, 12.0, 5.5, 5.5),
+    "3030": (30.0, 8.0, 16.5, 9.0, 7.3),
+    "4040": (40.0, 10.0, 20.1, 12.5, 10.0),
+}
+
 GOOD_SLOT = dict(opening=6.0, lip=1.5, cavity_width=10.0, cavity_height=1.5, floor_width=6.0, depth=5.0)
 
 
 class TestCatalogue(unittest.TestCase):
 
     def test_supported_sizes(self):
-        self.assertEqual(Profiles.families(), ["Generic"])
-        self.assertEqual(Profiles.sizes("Generic"), ["2020", "3030", "4040"])
+        self.assertEqual(Profiles.families(), ["Generic", "B-Type"])
+        sizes = ["2020", "2040", "2060", "3030", "3060", "3090", "4040", "4080", "40120", "8080"]
+        self.assertEqual(Profiles.sizes("Generic"), sizes)
+        self.assertEqual(Profiles.sizes("B-Type"), sizes)
+
+    def test_multi_unit_profiles(self):
+        """Wider profiles are grids of the matching unit profile, columns along X."""
+        for family in Profiles.families():
+            for size, unit, columns, rows in (("2040", "2020", 1, 2), ("2060", "2020", 1, 3),
+                                              ("3090", "3030", 1, 3), ("40120", "4040", 1, 3),
+                                              ("8080", "4040", 2, 2)):
+                with self.subTest(family=family, size=size):
+                    profile = Profiles.get_profile(family, size)
+                    base = Profiles.get_profile(family, unit)
+                    self.assertEqual((profile.columns, profile.rows), (columns, rows))
+                    self.assertEqual(profile.outer, base.outer)
+                    self.assertEqual(profile.slot, base.slot)
+                    self.assertEqual(profile.bore_diameter, base.bore_diameter)
+                    self.assertEqual((profile.width, profile.height), (base.outer * columns, base.outer * rows))
+
+    def test_single_unit_by_default(self):
+        profile = Profiles.get_profile("Generic", "4040")
+        self.assertEqual((profile.columns, profile.rows, profile.width, profile.height), (1, 1, 40.0, 40.0))
 
     def test_dimension_lookup(self):
-        for size, (outer, opening, cavity, depth, bore) in EXPECTED.items():
-            with self.subTest(size=size):
-                profile = Profiles.get_profile("Generic", size)
-                self.assertEqual(profile.outer, outer)
-                self.assertEqual(profile.slot.opening, opening)
-                self.assertEqual(profile.slot.cavity_width, cavity)
-                self.assertEqual(profile.slot.depth, depth)
-                self.assertEqual(profile.bore_diameter, bore)
+        for family, expected in (("Generic", EXPECTED), ("B-Type", EXPECTED_B_TYPE)):
+            for size, (outer, opening, cavity, depth, bore) in expected.items():
+                with self.subTest(family=family, size=size):
+                    profile = Profiles.get_profile(family, size)
+                    self.assertEqual(profile.family, family)
+                    self.assertEqual(profile.outer, outer)
+                    self.assertEqual(profile.slot.opening, opening)
+                    self.assertEqual(profile.slot.cavity_width, cavity)
+                    self.assertEqual(profile.slot.depth, depth)
+                    self.assertEqual(profile.bore_diameter, bore)
 
-    def test_generic_slots_are_undercut(self):
-        for size in EXPECTED:
-            with self.subTest(size=size):
-                slot = Profiles.get_profile("Generic", size).slot
-                self.assertGreater(slot.cavity_width, slot.opening)
-                self.assertLess(slot.taper_start, slot.depth)
+    def test_slots_are_undercut(self):
+        for family in Profiles.families():
+            for size in Profiles.sizes(family):
+                with self.subTest(family=family, size=size):
+                    slot = Profiles.get_profile(family, size).slot
+                    self.assertGreater(slot.cavity_width, slot.opening)
+                    self.assertLess(slot.taper_start, slot.depth)
 
-    def test_generic_walls_are_consistent(self):
+    def test_b_type_cavities_taper_at_45_degrees(self):
+        for size in EXPECTED_B_TYPE:
+            with self.subTest(size=size):
+                s = Profiles.get_profile("B-Type", size).slot
+                self.assertAlmostEqual((s.cavity_width - s.floor_width) / 2.0, s.depth - s.taper_start, places=2)
+
+    def test_walls_are_consistent(self):
         """Slots, cavities and bore do not meet; every wall is at least MIN_WALL thick."""
-        for size in EXPECTED:
-            with self.subTest(size=size):
-                walls = Profiles.get_profile("Generic", size).wall_thicknesses()
-                self.assertEqual(set(walls), {"corner", "diagonal web", "core", "lip"})
-                for name, thickness in walls.items():
-                    self.assertGreaterEqual(thickness, Profiles.MIN_WALL, name)
+        for family in Profiles.families():
+            for size in Profiles.sizes(family):
+                with self.subTest(family=family, size=size):
+                    walls = Profiles.get_profile(family, size).wall_thicknesses()
+                    self.assertEqual(set(walls), {"corner", "diagonal web", "core", "lip"})
+                    for name, thickness in walls.items():
+                        self.assertGreaterEqual(thickness, Profiles.MIN_WALL, name)
 
     def test_defaults_are_registered(self):
         profile = Profiles.get_profile(Profiles.DEFAULT_FAMILY, Profiles.DEFAULT_SIZE)
@@ -133,6 +172,15 @@ class TestInvalidProfiles(unittest.TestCase):
                     self.make(outer=value)
                 with self.assertRaises(ProfileError):
                     self.make(bore=value)
+
+    def test_bad_grid(self):
+        slot = SlotDefinition(**GOOD_SLOT)
+        for value in (0, -1, 1.5, 2.0, "2", None, True):
+            with self.subTest(value=value):
+                with self.assertRaises(ProfileError):
+                    ProfileDefinition("Test", "X", 20.0, slot, 4.0, columns=value)
+                with self.assertRaises(ProfileError):
+                    ProfileDefinition("Test", "X", 20.0, slot, 4.0, rows=value)
 
     def test_slot_must_be_slot_definition(self):
         with self.assertRaises(ProfileError):

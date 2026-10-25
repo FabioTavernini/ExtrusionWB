@@ -7,9 +7,10 @@ The cross-section is built directly as one face, with no Booleans between
 solids:
 
 1. :func:`outline_points` traces the outer boundary as a single closed
-   polygon. It walks the four sides clockwise, and each side contributes
-   its T-slot recess (opening, undercut cavity, taper, floor).
-2. The centre bore is a circle, used as the face's inner wire.
+   polygon. It walks the four sides clockwise, and each unit edge along a
+   side contributes its T-slot recess (opening, undercut cavity, taper,
+   floor).
+2. Each unit's centre bore is a circle, used as an inner wire of the face.
 3. The face is extruded along +Z into one solid.
 
 The section is centred on the local Z axis and the solid runs from Z = 0
@@ -44,22 +45,40 @@ def slot_points(slot):
 
 def outline_points(profile):
     """The closed outer boundary as (x, y) tuples, clockwise, without repeating the start."""
-    half = profile.outer / 2.0
-    # The top side, from the top-left corner towards +X: (u, v) -> (u, half - v).
-    top = [(-half, half)] + [(u, half - v) for u, v in slot_points(profile.slot)]
+    w = profile.width / 2.0
+    h = profile.height / 2.0
+    slot = slot_points(profile.slot)
     points = []
-    for _ in range(4):
-        points.extend(top)
-        # Rotate -90 degrees about Z to get the next side, clockwise.
-        top = [(y, -x) for x, y in top]
+    # Each side: start corner, direction along the side, inward normal, and
+    # its number of units. Clockwise from the top-left corner.
+    for (x0, y0), (dx, dy), (nx, ny), count in (
+        ((-w, h), (1, 0), (0, -1), profile.columns),   # top, towards +X
+        ((w, h), (0, -1), (-1, 0), profile.rows),      # right, towards -Y
+        ((w, -h), (-1, 0), (0, 1), profile.columns),   # bottom, towards -X
+        ((-w, -h), (0, 1), (1, 0), profile.rows),      # left, towards +Y
+    ):
+        points.append((x0, y0))
+        for k in range(count):
+            centre = (k + 0.5) * profile.outer
+            for u, v in slot:
+                along = centre + u
+                points.append((x0 + dx * along + nx * v, y0 + dy * along + ny * v))
     return points
+
+
+def bore_centres(profile):
+    """Centre of each unit's bore, as (x, y) tuples."""
+    return [((i + 0.5) * profile.outer - profile.width / 2.0,
+             (j + 0.5) * profile.outer - profile.height / 2.0)
+            for j in range(profile.rows) for i in range(profile.columns)]
 
 
 def create_profile_face(profile):
     """Return the cross-section of ``profile`` as a valid ``Part.Face`` in the XY plane."""
     outer = Part.makePolygon([FreeCAD.Vector(x, y, 0.0) for x, y in outline_points(profile)], True)
-    bore = Part.Wire(Part.makeCircle(profile.bore_diameter / 2.0))
-    face = Part.makeFace([outer, bore], "Part::FaceMakerBullseye")
+    bores = [Part.Wire(Part.makeCircle(profile.bore_diameter / 2.0, FreeCAD.Vector(x, y, 0.0)))
+             for x, y in bore_centres(profile)]
+    face = Part.makeFace([outer] + bores, "Part::FaceMakerBullseye")
     if not isinstance(face, Part.Face):
         faces = face.Faces
         if len(faces) != 1:

@@ -24,13 +24,18 @@ _MOD_DIR = os.path.join(FreeCAD.getUserAppDataDir(), "Mod") if FreeCAD else ""
 _FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 
 
-def expected_area(size):
-    """Section area worked out by hand: square minus four slots minus the bore."""
-    p = Profiles.get_profile("Generic", size)
+def expected_area(size, family="Generic"):
+    """Section area worked out by hand: rectangle minus the slots minus the bores.
+
+    There is one slot per outer unit edge and one bore per unit.
+    """
+    p = Profiles.get_profile(family, size)
     s = p.slot
     slot = (s.opening * s.lip + s.cavity_width * s.cavity_height
             + (s.cavity_width + s.floor_width) / 2.0 * (s.depth - s.taper_start))
-    return p.outer ** 2 - 4.0 * slot - math.pi * (p.bore_diameter / 2.0) ** 2
+    slots = 2 * (p.columns + p.rows)
+    bores = p.columns * p.rows
+    return p.width * p.height - slots * slot - bores * math.pi * (p.bore_diameter / 2.0) ** 2
 
 
 @unittest.skipIf(FreeCAD is None, "FreeCAD is not available")
@@ -54,11 +59,11 @@ class FreeCADTestCase(unittest.TestCase):
         """Recomputed without error and not waiting for another recompute."""
         self.assertFalse({"Touched", "Invalid", "Error"} & set(obj.State), obj.State)
 
-    def assertProfile(self, obj, size, length):
+    def assertProfile(self, obj, size, length, family="Generic"):
         """Valid single solid with the profile's outer size, length and section area."""
-        edge = float(size[:2])
-        self.assertBox(obj, edge, edge, length)
-        self.assertAlmostEqual(obj.Shape.Volume, expected_area(size) * length, delta=1e-6 * length)
+        p = Profiles.get_profile(family, size)
+        self.assertBox(obj, p.width, p.height, length)
+        self.assertAlmostEqual(obj.Shape.Volume, expected_area(size, family) * length, delta=1e-6 * length)
 
     def assertBox(self, obj, x, y, z):
         self.assertFalse(obj.Shape.isNull())
@@ -91,7 +96,7 @@ class TestExtrusionObject(FreeCADTestCase):
         self.assertIsInstance(obj.Proxy, Extrusion.Extrusion)
         self.assertEqual(obj.ProfileFamily, "Generic")
         self.assertEqual(obj.ProfileSize, "4040")
-        self.assertEqual(obj.getEnumerationsOfProperty("ProfileSize"), ["2020", "3030", "4040"])
+        self.assertEqual(obj.getEnumerationsOfProperty("ProfileSize"), Profiles.sizes("Generic"))
         self.assertAlmostEqual(obj.Length.Value, 750.0)
         self.assertProfile(obj, "4040", 750)
         self.assertAlmostEqual(obj.CrossSectionArea.Value, expected_area("4040"), places=6)
@@ -112,6 +117,61 @@ class TestExtrusionObject(FreeCADTestCase):
                     obj = self.make(size=size, length=length)
                     self.assertProfile(obj, size, length)
                     self.assertAlmostEqual(obj.CrossSectionArea.Value, expected_area(size), places=6)
+
+    def test_b_type_object(self):
+        for size in ("2020", "3030", "4040"):
+            with self.subTest(size=size):
+                obj = self.make(size=size, family="B-Type")
+                self.assertEqual(obj.ProfileFamily, "B-Type")
+                self.assertBox(obj, float(size[:2]), float(size[:2]), 750)
+                self.assertAlmostEqual(obj.CrossSectionArea.Value, expected_area(size, "B-Type"), places=6)
+                self.assertClean(obj)
+
+    def test_multi_unit_objects(self):
+        for family in Profiles.families():
+            for size in ("2040", "3090", "8080"):
+                with self.subTest(family=family, size=size):
+                    obj = self.make(size=size, family=family, length=500)
+                    self.assertProfile(obj, size, 500, family)
+                    self.assertAlmostEqual(obj.CrossSectionArea.Value, expected_area(size, family), places=6)
+                    self.assertEqual(obj.Label.split(" x ")[0], f"Extrusion {size}")
+                    self.assertClean(obj)
+
+    def test_change_to_wider_profile(self):
+        obj = self.make(size="2020")
+        obj.ProfileSize = "2040"
+        self.doc.recompute()
+        self.assertProfile(obj, "2040", 750)
+        self.assertEqual(obj.Label, "Extrusion 2040 x 750 mm")
+
+    def test_change_family(self):
+        obj = self.make(size="3030")
+        obj.ProfileFamily = "B-Type"
+        self.assertEqual(obj.getEnumerationsOfProperty("ProfileSize"), Profiles.sizes("B-Type"))
+        self.assertEqual(obj.ProfileSize, "3030")
+        self.doc.recompute()
+        self.assertAlmostEqual(obj.CrossSectionArea.Value, expected_area("3030", "B-Type"), places=6)
+        self.assertNotAlmostEqual(expected_area("3030", "B-Type"), expected_area("3030"), places=0)
+        self.assertClean(obj)
+
+        obj.ProfileFamily = "Generic"
+        self.doc.recompute()
+        self.assertEqual(obj.ProfileSize, "3030")
+        self.assertAlmostEqual(obj.CrossSectionArea.Value, expected_area("3030"), places=6)
+
+    def test_b_type_save_reopen(self):
+        obj = self.make(size="2020", length=300, family="B-Type")
+        name = obj.Name
+        path = os.path.join(self.tmpdir, "btype.FCStd")
+        self.doc.saveAs(path)
+        FreeCAD.closeDocument(self.doc.Name)
+        self.doc = FreeCAD.openDocument(path)
+        obj = self.doc.getObject(name)
+        self.assertEqual(obj.ProfileFamily, "B-Type")
+        self.assertEqual(obj.ProfileSize, "2020")
+        self.doc.recompute()
+        self.assertAlmostEqual(obj.Shape.Volume, expected_area("2020", "B-Type") * 300, delta=1e-3)
+        self.assertClean(obj)
 
     def test_update_and_recompute(self):
         obj = self.make()
@@ -207,7 +267,7 @@ class TestPersistence(FreeCADTestCase):
         self.assertIsInstance(obj.Proxy, Extrusion.Extrusion)
         self.assertEqual(obj.ProfileSize, "3030")
         self.assertAlmostEqual(obj.Length.Value, 1200.0)
-        self.assertEqual(obj.getEnumerationsOfProperty("ProfileSize"), ["2020", "3030", "4040"])
+        self.assertEqual(obj.getEnumerationsOfProperty("ProfileSize"), Profiles.sizes("Generic"))
         self.assertIn("ReadOnly", obj.getEditorMode("CrossSectionArea"))
         self.assertProfile(obj, "3030", 1200)
         self.assertEqual(obj.Placement.Base, FreeCAD.Vector(10, 20, 30))
@@ -238,7 +298,7 @@ class TestPersistence(FreeCADTestCase):
         name = obj.Name
         doc = self.save_and_reopen()
         obj = doc.getObject(name)
-        self.assertEqual(obj.getEnumerationsOfProperty("ProfileSize"), ["2020", "3030", "4040"])
+        self.assertEqual(obj.getEnumerationsOfProperty("ProfileSize"), Profiles.sizes("Generic"))
         self.assertEqual(obj.ProfileSize, "2020")
 
 
