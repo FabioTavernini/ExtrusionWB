@@ -74,6 +74,9 @@ https://github.com/user-attachments/assets/7ed7ae74-4891-429f-9dcd-3f6c5e011870
   overhangs it by up to 10 mm) is also moved flush with that end, and one whose
   centre is over its base's face is centred on it, or lined up with a side of
   the base when that is nearer.
+- **Delete prompt**: deleting an extrusion that has corner brackets or T-nuts
+  asks whether to delete them (and their screws) too, once for a whole
+  selection. "Delete extrusion only" leaves them behind with an error.
 - **T-Nut** and **Screw** commands to add hardware by hand: click a profile
   face to drop a T-nut into the slot there, then add a screw into it (see
   [T-nuts and screws](#t-nuts-and-screws)). Screws are made by the

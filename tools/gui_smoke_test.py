@@ -173,6 +173,80 @@ class TestGui(unittest.TestCase):
         FreeCADGui.runCommand("TSlot_FitJoints")
         self.assertAlmostEqual(short.Length.Value, 320.0, delta=1e-6)
 
+    def test_delete_extrusion_with_hardware(self):
+        """Deleting an extrusion asks about its brackets, T-nuts and screws."""
+        from freecad.TSlotWorkbench import Extrusion, Frame
+
+        asked = []
+        answers = []
+
+        def ask(extrusions, screws, nuts, brackets):
+            asked.append(len(extrusions))
+            return answers.pop(0)
+
+        Extrusion._ask_delete = ask
+        doc = FreeCAD.newDocument()
+        Frame.make_rectangular_frame(doc, 800, 400, hardware=True)
+        doc.recompute()
+        members = [o for o in doc.Objects if isinstance(getattr(o, "Proxy", None), Extrusion.Extrusion)]
+        everything = len(doc.Objects)
+
+        def delete(*objs):
+            """What Std_Delete does per object, without its own confirmation dialog."""
+            FreeCADGui.Selection.clearSelection()
+            for o in objs:
+                FreeCADGui.Selection.addSelection(doc.Name, o.Name)
+            for o in objs:
+                if doc.getObject(o.Name) is not None and o.ViewObject.Proxy.onDelete(o.ViewObject, []):
+                    doc.removeObject(o.Name)
+
+        # Cancel keeps everything.
+        answers.append("cancel")
+        delete(members[0])
+        self.assertEqual(len(doc.Objects), everything)
+
+        # "Extrusion only" leaves the hardware behind.
+        answers.append("only")
+        delete(members[0])
+        self.assertEqual(len(doc.Objects), everything - 1)
+
+        # "All" removes the brackets of the joint, their nuts and screws, and no other extrusion.
+        answers.append("all")
+        delete(members[1])
+        self.assertLess(len(doc.Objects), everything - 2)
+        self.assertEqual(len([o for o in doc.Objects if isinstance(getattr(o, "Proxy", None), Extrusion.Extrusion)]), 2)
+
+        # Several extrusions at once ask once.
+        asked.clear()
+        answers.append("all")
+        delete(members[2], members[3])
+        self.assertEqual(asked, [2])
+        self.assertEqual([o.Label for o in doc.Objects], ["Frame 800 x 400"])  # just the group
+
+        # An extrusion without hardware is deleted without asking.
+        lone = Extrusion.make_extrusion(doc)
+        doc.recompute()
+        asked.clear()
+        name = lone.Name
+        delete(lone)
+        self.assertEqual(asked, [])
+        self.assertIsNone(doc.getObject(name))
+
+    def test_delete_prompt_survives_reopen(self):
+        import tempfile
+
+        from freecad.TSlotWorkbench import Extrusion
+
+        doc = FreeCAD.newDocument("DeleteReopen")
+        Extrusion.make_extrusion(doc)
+        doc.recompute()
+        path = os.path.join(tempfile.mkdtemp(), "e.FCStd")
+        doc.saveAs(path)
+        FreeCAD.closeDocument(doc.Name)
+        doc = FreeCAD.openDocument(path)
+        (obj,) = doc.Objects
+        self.assertIsInstance(obj.ViewObject.Proxy, Extrusion.ViewProviderExtrusion)
+
     def test_corner_bracket(self):
         """Select two extrusions forming an L, run Corner Bracket."""
         doc = FreeCAD.newDocument()
@@ -334,6 +408,12 @@ class TestGui(unittest.TestCase):
             self.assertEqual(len(obj.Shape.Solids), 1)
             doc.recompute()
             self.assertTrue(obj.isValid())
+            # The delete prompt is attached once the document has opened, without hiding the object.
+            QtWidgets.QApplication.processEvents()
+            from freecad.TSlotWorkbench import Extrusion
+
+            self.assertIsInstance(obj.ViewObject.Proxy, Extrusion.ViewProviderExtrusion)
+            self.assertTrue(obj.ViewObject.Visibility)
             FreeCAD.closeDocument(doc.Name)
 
 

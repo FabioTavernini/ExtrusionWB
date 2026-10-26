@@ -96,6 +96,10 @@ class Extrusion:
             except Exception as exc:
                 FreeCAD.Console.PrintWarning(f"{obj.Label}: could not upgrade geometry: {exc}\n")
 
+        if FreeCAD.GuiUp and not isinstance(getattr(getattr(obj, "ViewObject", None), "Proxy", None),
+                                            ViewProviderExtrusion):
+            _attach_view_provider_later(obj)  # documents saved before the delete prompt existed
+
         # Refresh enumeration choices from the current catalogue, so documents
         # saved by an older version pick up newly added families and sizes.
         _set_choices(obj, "ProfileFamily", Profiles.families())
@@ -124,6 +128,101 @@ class Extrusion:
     # Pre-1.0 names for dumps/loads.
     __getstate__ = dumps
     __setstate__ = loads
+
+
+class ViewProviderExtrusion:
+    """Offers to delete the brackets and hardware of an extrusion along with it."""
+
+    def __init__(self, vobj):
+        vobj.Proxy = self
+
+    def attach(self, vobj):
+        self.Object = vobj.Object
+
+    def onDelete(self, vobj, subelements):
+        return _confirm_delete(vobj.Object)
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+    __getstate__ = dumps
+    __setstate__ = loads
+
+
+# Answer to one delete prompt, shared by all extrusions deleted in the same command:
+# extrusion name -> "all", "only" or "cancel".
+_delete_choices = {}
+
+
+def _attach_view_provider_later(obj):
+    """Give ``obj`` its view provider once its document has finished opening.
+
+    Attaching a proxy while the document is still being restored hides the object.
+    """
+    from PySide import QtCore
+
+    doc_name, name = obj.Document.Name, obj.Name
+
+    def attach():
+        doc = FreeCAD.getDocument(doc_name) if doc_name in FreeCAD.listDocuments() else None
+        target = doc.getObject(name) if doc else None
+        view = getattr(target, "ViewObject", None)
+        if view is not None and not isinstance(view.Proxy, ViewProviderExtrusion):
+            visible = view.Visibility
+            ViewProviderExtrusion(view)
+            view.Visibility = visible
+
+    QtCore.QTimer.singleShot(0, attach)
+
+
+def _ask_delete(extrusions, screws, nuts, brackets):
+    """Ask what to do with the hardware of ``extrusions``: "all", "only" or "cancel"."""
+    from PySide import QtWidgets
+
+    parts = [f"{len(items)} {name}" for items, name in
+             ((brackets, "corner bracket(s)"), (nuts, "T-nut(s)"), (screws, "screw(s)")) if items]
+    what = extrusions[0].Label if len(extrusions) == 1 else f"{len(extrusions)} extrusions"
+    box = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Question, "Delete extrusion",
+                                f"{what} has {', '.join(parts)} attached.\n\nDelete them too?")
+    box.setInformativeText("Brackets and nuts left behind have nothing to sit on and show an error.")
+    everything = box.addButton("Delete with hardware", QtWidgets.QMessageBox.AcceptRole)
+    only = box.addButton("Delete extrusion only", QtWidgets.QMessageBox.DestructiveRole)
+    box.addButton(QtWidgets.QMessageBox.Cancel)
+    box.setDefaultButton(everything)
+    box.exec_()
+    clicked = box.clickedButton()
+    return "all" if clicked is everything else "only" if clicked is only else "cancel"
+
+
+def _confirm_delete(obj):
+    """Whether ``obj`` may be deleted; with the user's say, also deletes what is attached to it."""
+    import FreeCADGui
+
+    from . import CornerBracket
+
+    choice = _delete_choices.pop(obj.Name, None)
+    if choice is None:
+        # Ask once for every extrusion deleted together.
+        selected = [o for o in FreeCADGui.Selection.getSelection() if o.Document == obj.Document
+                    and isinstance(getattr(o, "Proxy", None), Extrusion)]
+        extrusions = selected if obj in selected else [obj]
+        screws, nuts, brackets = CornerBracket.attached_to(extrusions)
+        choice = _ask_delete(extrusions, screws, nuts, brackets) if brackets or nuts else "only"
+        for other in extrusions:
+            if other is not obj:
+                _delete_choices[other.Name] = choice
+    if choice == "cancel":
+        return False
+    if choice == "all":
+        doc = obj.Document
+        for group in CornerBracket.attached_to([obj]):
+            for item in group:
+                if doc.getObject(item.Name) is not None:
+                    doc.removeObject(item.Name)
+    return True
 
 
 def _add_schema_version(obj):
@@ -157,6 +256,5 @@ def make_extrusion(doc, size=Profiles.DEFAULT_SIZE, length=Profiles.DEFAULT_LENG
     obj.ProfileSize = size
     obj.Length = length
     if FreeCAD.GuiUp:
-        # No custom view provider is needed; this gives the default Part one.
-        obj.ViewObject.Proxy = 0
+        ViewProviderExtrusion(obj.ViewObject)
     return obj

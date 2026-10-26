@@ -485,6 +485,28 @@ def nuts_of(bracket_obj):
     return [o for o in bracket_obj.InList if Hardware.is_nut(o) and o.Bracket == bracket_obj]
 
 
+def attached_to(extrusions):
+    """What belongs to ``extrusions``: ``(screws, nuts, brackets)``.
+
+    The brackets joined to them, the nuts of those brackets and any nut
+    sitting in them, and the screws in those nuts.
+    """
+    from . import Hardware
+
+    brackets, nuts = [], []
+    for extrusion in extrusions:
+        for obj in extrusion.InList:
+            if isinstance(getattr(obj, "Proxy", None), CornerBracket) and extrusion in (obj.Post, obj.Base):
+                if obj not in brackets:
+                    brackets.append(obj)
+            elif Hardware.is_nut(obj) and obj.Profile == extrusion and obj not in nuts:
+                nuts.append(obj)
+    for bracket in brackets:
+        nuts.extend(n for n in nuts_of(bracket) if n not in nuts)
+    screws = [s for nut in nuts for s in Hardware.screws_of(nut)]
+    return screws, nuts, brackets
+
+
 def make_corner_bracket(doc, corner, size=None, name="CornerBracket"):
     """Add a bracket at ``corner`` to ``doc`` and return it. The caller recomputes."""
     bracket = Brackets.get_bracket(size) if size else default_bracket(corner.post, corner.base)
