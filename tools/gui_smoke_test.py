@@ -68,7 +68,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"} | QUICK_TOOLBARS)
         self.assertEqual(set(wb.listMenus()) - std_menus, {"Extrusions"})
         items = wb.getToolbarItems()
-        self.assertEqual(items["T-Slot"], [CMD, "TSlot_RectangularFrame", BRACKET_CMD, "TSlot_FitJoints", "TSlot_AngleBracket", "TSlot_Foot", NUT_CMD, SCREW_CMD])
+        self.assertEqual(items["T-Slot"], [CMD, "TSlot_RectangularFrame", BRACKET_CMD, "TSlot_FitJoints", "TSlot_AngleBracket", "TSlot_Foot", NUT_CMD, SCREW_CMD, "TSlot_Bom"])
         for group, commands in QUICK_CMDS.items():
             self.assertEqual(items[f"T-Slot {group}"], list(commands))
         for toolbars, menus in others.values():
@@ -276,6 +276,25 @@ class TestGui(unittest.TestCase):
         self.assertTrue(leg.ViewObject.Proxy.onDelete(leg.ViewObject, []))
         self.assertEqual(asked, [1])
         self.assertIsNone(doc.getObject(foot_name))
+
+    def test_bom_dialog(self):
+        """Open the Bill of Materials dialog (without running its event loop) on a small frame."""
+        from freecad.TSlotWorkbench import Frame
+
+        doc = FreeCAD.newDocument()
+        command = FreeCADGui.Command.get("TSlot_Bom")
+        self.assertTrue(os.path.isfile(command.getInfo()["pixmap"]))
+        Frame.make_rectangular_frame(doc, 800, 400, hardware=False)
+        doc.recompute()
+        shown = []
+        original = QtWidgets.QDialog.exec_
+        QtWidgets.QDialog.exec_ = lambda self: shown.append(self.findChildren(QtWidgets.QTableWidget)[0].rowCount()) or 0
+        try:
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.runCommand("TSlot_Bom")
+        finally:
+            QtWidgets.QDialog.exec_ = original
+        self.assertEqual(shown, [3])  # two lengths of extrusion, and the brackets
 
     def test_corner_bracket(self):
         """Select two extrusions forming an L, run Corner Bracket."""

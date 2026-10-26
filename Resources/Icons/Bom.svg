@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Bill of materials</title>
+  <path fill="#f4f1ea" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M10 6 H54 V58 H10 Z"/>
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" d="M10 6 H54 V16 H10 Z"/>
+  <path fill="none" stroke="#2e3a46" stroke-width="2" d="M10 28 H54 M10 40 H54 M10 50 H54 M26 16 V58 M42 16 V58"/>
+  <path fill="#e0a030" d="M13 30 H23 V38 H13 Z M29 30 H39 V38 H29 Z"/>
+</svg>

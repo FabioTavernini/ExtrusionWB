@@ -86,6 +86,12 @@ https://github.com/user-attachments/assets/7ed7ae74-4891-429f-9dcd-3f6c5e011870
   each, one per bore. `Extension` sets how far the pad is from the end, to
   level the frame; the thread follows the series (M5, M6, M8) and can be
   changed.
+- **Bill of Materials** command: lists the extrusions (a cut list by
+  profile and length, with the total length per profile), corner and angle
+  brackets, feet, T-nuts and screws. It covers the selected parts and
+  everything attached to them (select a frame's group for the whole frame),
+  or the whole document when nothing is selected. Save it as CSV, copy it, or
+  add it to the document as a spreadsheet.
 - **Delete prompt**: deleting an extrusion that has corner brackets or T-nuts
   asks whether to delete them (and their angle brackets, feet and screws) too, once for a whole
   selection. "Delete extrusion only" leaves them behind with an error.
@@ -416,7 +422,7 @@ like any Fasteners screw.
 - Corner brackets only for 90° joints where an end meets a side face; no
   end-to-end or mitred joints and no hidden connectors. The frame generator
   makes rectangles and boxes only, and Fit Joints only corrects lengths,
-  not tilts. No cut list or BOM.
+  not tilts. No stock-bar optimisation or cost.
 - T-nuts are simplified sliding nuts with a plain hole; no spring-loaded,
   hammer-head or roll-in nuts. Screws attached to a nut keep their own
   `Length` when the clamped thickness changes.
@@ -435,7 +441,7 @@ Planned, not implemented:
 - Extrusions following selected sketch edges.
 - Hidden connectors; brackets for more joint types.
 - Frames other than rectangles and boxes (L, T and custom layouts).
-- Cut lists and BOM export.
+- Stock-bar packing for the cut list, and costs.
 
 ## Running the tests
 

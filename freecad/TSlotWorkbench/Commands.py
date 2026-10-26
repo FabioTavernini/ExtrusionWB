@@ -419,6 +419,85 @@ class FootCommand:
             FreeCADGui.Selection.addSelection(doc.Name, foot.Name)
 
 
+class BomCommand:
+    """Show the bill of materials and cut list of the selection, or of the whole document."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Bill of Materials",
+            "ToolTip": "List the extrusions (a cut list by profile and length), brackets, feet, T-nuts and "
+                       "screws of the selected parts and everything attached to them, or of the whole "
+                       "document if nothing is selected. Save it as CSV or add it as a spreadsheet.",
+            "Pixmap": icon_path("Bom.svg"),
+        }
+
+    def IsActive(self):
+        return FreeCAD.ActiveDocument is not None
+
+    def Activated(self):
+        from . import Bom
+
+        doc = FreeCAD.ActiveDocument
+        selected = FreeCADGui.Selection.getSelection()
+        rows = Bom.collect(selected or doc.Objects)
+        if not rows:
+            FreeCAD.Console.PrintWarning("Bill of Materials: no extrusions or hardware found.\n")
+            return
+        _show_bom(doc, rows, "selection" if selected else "document")
+
+
+def _show_bom(doc, rows, scope):
+    from PySide import QtCore, QtWidgets
+
+    from . import Bom
+
+    dialog = QtWidgets.QDialog(FreeCADGui.getMainWindow())
+    dialog.setWindowTitle(f"Bill of Materials ({scope})")
+    dialog.resize(720, 460)
+    layout = QtWidgets.QVBoxLayout(dialog)
+    table = QtWidgets.QTableWidget(len(rows), len(Bom.HEADER))
+    table.setHorizontalHeaderLabels(Bom.HEADER)
+    table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+    table.verticalHeader().setVisible(False)
+    for r, row in enumerate(rows):
+        for c, cell in enumerate(Bom._cells(row)):
+            item = QtWidgets.QTableWidgetItem(str(cell))
+            if c >= 2:
+                item.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+            table.setItem(r, c, item)
+    table.resizeColumnsToContents()
+    table.horizontalHeader().setStretchLastSection(True)
+    layout.addWidget(table)
+    totals = Bom.stock_totals(rows)
+    if totals:
+        layout.addWidget(QtWidgets.QLabel("   ".join(f"{p}: {mm / 1000.0:.3f} m" for p, mm in sorted(totals.items()))))
+
+    buttons = QtWidgets.QDialogButtonBox()
+    save = buttons.addButton("Save CSV...", QtWidgets.QDialogButtonBox.ActionRole)
+    sheet = buttons.addButton("Add spreadsheet", QtWidgets.QDialogButtonBox.ActionRole)
+    copy = buttons.addButton("Copy", QtWidgets.QDialogButtonBox.ActionRole)
+    buttons.addButton(QtWidgets.QDialogButtonBox.Close)
+    layout.addWidget(buttons)
+
+    def save_csv():
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(dialog, "Save bill of materials", "bom.csv", "CSV (*.csv)")
+        if path:
+            with open(path, "w", newline="", encoding="utf-8") as handle:
+                handle.write(Bom.to_csv(rows))
+
+    def add_sheet():
+        doc.openTransaction("Bill of Materials")
+        Bom.to_sheet(doc, rows)
+        doc.recompute()
+        doc.commitTransaction()
+
+    save.clicked.connect(save_csv)
+    sheet.clicked.connect(add_sheet)
+    copy.clicked.connect(lambda: QtWidgets.QApplication.clipboard().setText(Bom.to_csv(rows)))
+    buttons.rejected.connect(dialog.reject)
+    dialog.exec_()
+
+
 def _picked_faces():
     """Selected faces of extrusions, as (extrusion, face, picked point)."""
     from .Extrusion import Extrusion
@@ -460,7 +539,8 @@ def _resolve_faces(face_names):
 
 
 COMMANDS = ["TSlot_CreateExtrusion", "TSlot_RectangularFrame", "TSlot_CornerBracket", "TSlot_FitJoints",
-            "TSlot_AngleBracket", "TSlot_Foot", "TSlot_TSlotNut", "TSlot_Screw"]
+            "TSlot_AngleBracket", "TSlot_Foot", "TSlot_TSlotNut", "TSlot_Screw",
+            "TSlot_Bom"]
 # family -> its quick-insert command names, in button order.
 QUICK_COMMANDS = {}
 
@@ -470,6 +550,7 @@ FreeCADGui.addCommand("TSlot_CornerBracket", CornerBracketCommand())
 FreeCADGui.addCommand("TSlot_FitJoints", FitJointsCommand())
 FreeCADGui.addCommand("TSlot_AngleBracket", AngleBracketCommand())
 FreeCADGui.addCommand("TSlot_Foot", FootCommand())
+FreeCADGui.addCommand("TSlot_Bom", BomCommand())
 FreeCADGui.addCommand("TSlot_TSlotNut", TSlotNutCommand())
 FreeCADGui.addCommand("TSlot_Screw", ScrewCommand())
 for _family, (_name, _sizes) in QUICK_GROUPS.items():

@@ -287,6 +287,12 @@ def screws_of(nut):
             if hasattr(o, "AttachmentSupport") and o.AttachmentSupport and o.AttachmentSupport[0][0] == nut]
 
 
+def is_screw(obj):
+    """Whether ``obj`` is a Fasteners screw attached to one of our nuts."""
+    support = getattr(obj, "AttachmentSupport", None)
+    return bool(support) and is_nut(support[0][0]) and hasattr(obj, "Diameter")
+
+
 def bracket_hole(bracket_placement, bracket, leg):
     """Global centre and outward axis of a bracket leg's bolt slot, on the profile face.
 
