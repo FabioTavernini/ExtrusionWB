@@ -17,7 +17,7 @@ except ImportError:
     FreeCAD = None
 
 if FreeCAD is not None:
-    from freecad.TSlotWorkbench import Brackets, CornerBracket, Extrusion
+    from freecad.TSlotWorkbench import Brackets, CornerBracket, Extrusion, Profiles
 
 TOL = 1e-6
 
@@ -216,6 +216,26 @@ class TestCornerBrackets(unittest.TestCase):
                 self.assertEqual(post.Placement, placement)
                 self.assertIn("too far off to snap", CornerBracket.explain_no_corner(self.base, post))
                 self.doc.removeObject(post.Name)
+
+    def test_does_not_snap_a_post_that_is_already_bracketed(self):
+        """Moving it would pull its other joint apart (a closed frame is over-constrained)."""
+        other = self.extrusion("4040", 500, FreeCAD.Placement(
+            FreeCAD.Vector(0, 0, 400), FreeCAD.Rotation(FreeCAD.Vector(0, 1, 0), 90)))
+        post = self.post(250.0, length=359)  # ends at z = 379, 1 mm short of the other base (z = 380..420)
+        self.brackets(self.base, post)
+        placement = post.Placement
+        with self.assertRaisesRegex(Profiles.ProfileError, "already bracketed"):
+            CornerBracket.snap_joint(post, other)
+        self.assertEqual(post.Placement, placement)
+
+    def test_snaps_members_that_only_meet_along_an_edge(self):
+        """A frame corner: the post stands beside the base's end, touching only an edge."""
+        post = self.extrusion("4040", 500, FreeCAD.Placement(FreeCAD.Vector(520, 0, 22), FreeCAD.Rotation()))
+        # The base spans x 0..500; the post occupies x 500..540, 2 mm above the base's top face.
+        self.assertEqual(CornerBracket.find_corners(self.base, post), [])
+        self.assertIn("Snapped", CornerBracket.snap_joint(self.base, post) or "")
+        self.doc.recompute()
+        self.assertTrue(CornerBracket.find_corners(self.base, post))
 
     def test_exact_joint_is_not_moved(self):
         post = self.post(250.0)

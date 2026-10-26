@@ -190,6 +190,16 @@ _SIDE_NAMES = {(0, 1): "+X", (0, -1): "-X", (1, 1): "+Y", (1, -1): "-Y"}
 SNAP_DISTANCE = 10.0  # mm of gap or overlap
 SNAP_ANGLE = 5.0      # degrees of tilt or twist
 
+def _end_reach(post):
+    """How far the centre of the post's end may be off a face and still have the end touch it.
+
+    Two members that only meet along an edge (a frame corner) have the
+    centre half a profile away from the face.
+    """
+    profile = _profile(post)
+    return max(profile.width, profile.height) / 2.0
+
+
 Miss = namedtuple("Miss", "post base end side angle gap outside centre face_normal twist")
 Miss.__doc__ = """How close the end of ``post`` comes to a joint with a side face of ``base``.
 
@@ -244,7 +254,7 @@ def _describe_miss(miss):
     if abs(miss.gap) > TOL:
         problems.append(f"there is a {miss.gap:.3f} mm gap" if miss.gap > 0
                         else f"the end goes {-miss.gap:.3f} mm into the face")
-    if miss.outside > TOL:
+    if miss.outside > _end_reach(miss.post) + TOL:
         problems.append(f"the end's centre is {miss.outside:.3f} mm off the face")
     if abs(miss.twist) > 0.01:
         problems.append(f"{miss.post.Label} is turned {abs(miss.twist):.2f} degrees about its axis, "
@@ -266,19 +276,33 @@ def _twist(base, n, rotation):
     return angle - 90.0 * round(angle / 90.0)
 
 
+def _brackets_on(obj):
+    """Corner brackets whose joint has ``obj`` as its post or base."""
+    return [o for o in obj.InList if isinstance(getattr(o, "Proxy", None), CornerBracket)
+            and obj in (o.Post, o.Base)]
+
+
 def snap_joint(a, b):
     """Move the post of a near-miss joint between ``a`` and ``b`` into exact contact.
 
     The post is turned about the centre of its end, so it is square to the
     base's face and its sides line up with the base's, then moved onto the
     face. Only near misses are snapped: within ``SNAP_DISTANCE`` and
-    ``SNAP_ANGLE``, with the end's centre on the face. Returns a description
-    of what moved, or None if nothing was snapped.
+    ``SNAP_ANGLE``, with the post's end at least touching the face's extent
+    (a frame corner that meets only along an edge counts). Returns a description
+    of what moved, or None if nothing was snapped. Raises ``ProfileError``
+    if the post already has brackets, since moving it would break those joints.
     """
     miss = nearest_miss(a, b)
-    if miss is None or miss.outside > TOL or abs(miss.gap) > SNAP_DISTANCE or miss.angle > SNAP_ANGLE:
+    if miss is None or miss.outside > _end_reach(miss.post) + TOL or abs(miss.gap) > SNAP_DISTANCE or miss.angle > SNAP_ANGLE:
         return None
     post, base = miss.post, miss.base
+    others = sorted({j.Label for br in _brackets_on(post) for j in (br.Base, br.Post) if j not in (post, None)})
+    if others:
+        raise Profiles.ProfileError(
+            f"{post.Label} is already bracketed to {', '.join(others)}. Snapping it onto {base.Label} would "
+            f"move it {abs(miss.gap):.3f} mm and pull that joint apart. Adjust its length or placement by "
+            "that amount instead.")
     old = post.getGlobalPlacement()
     end_normal = old.Rotation.multVec(FreeCAD.Vector(0, 0, -1 if miss.end == "Start" else 1))
     tilt = FreeCAD.Rotation(end_normal, -miss.face_normal)

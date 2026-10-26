@@ -32,6 +32,10 @@ from .Extrusion import Extrusion
 
 TOL = 1e-3
 
+# How far off its face a bracket's base may drift before its nut stops following.
+# The bracket warns about the drift itself; the nut just stays in its slot.
+FOLLOW_TOL = 10.0
+
 # Metric threads offered for nuts, with their nominal diameters, in mm.
 THREADS = {"M4": 4.0, "M5": 5.0, "M6": 6.0, "M8": 8.0}
 
@@ -82,7 +86,7 @@ def slot_frame(extrusion, side, slot, position):
     return extrusion.getGlobalPlacement().multiply(local)
 
 
-def locate_in_slot(extrusion, point, normal, snap=False):
+def locate_in_slot(extrusion, point, normal, snap=False, tol=TOL):
     """Find the slot under ``point`` on the side face of ``extrusion`` facing ``normal``.
 
     Returns (side, slot, position along the extrusion, distance from the
@@ -98,9 +102,9 @@ def locate_in_slot(extrusion, point, normal, snap=False):
     for side, (axis, sign) in _SIDE_AXES.items():
         if abs(local_n[axis] - sign) > 1e-6:
             continue
-        if abs(local_p[axis] - sign * half[axis]) > TOL:
+        if abs(local_p[axis] - sign * half[axis]) > tol:
             break
-        if not -TOL <= local_p.z <= extrusion.Length.Value + TOL:
+        if not -tol <= local_p.z <= extrusion.Length.Value + tol:
             break
         across = local_p[1 - axis]
         centres = slot_centres(profile, side)
@@ -204,7 +208,7 @@ class TSlotNut:
 
         bracket = Brackets.get_bracket(obj.Bracket.BracketSize)
         point, normal = bracket_hole(_bracket_placement(obj.Bracket), bracket, obj.BracketLeg)
-        side, slot, position, _ = locate_in_slot(obj.Profile, point, normal)
+        side, slot, position, _ = locate_in_slot(obj.Profile, point, normal, tol=FOLLOW_TOL)
         if obj.Side != side:
             obj.Side = side
         if obj.Slot != slot:

@@ -158,6 +158,17 @@ class TestNuts(HardwareTestCase):
             self.assertClean(nut)
             self.assertNoClash(nut, self.base)
 
+    def test_bracket_nut_survives_a_drifted_base(self):
+        """A base nudged off its bracket leaves the nut in its slot instead of failing."""
+        post = self.post()
+        (bracket,) = CornerBracket.make_corner_brackets(self.doc, self.base, post)
+        nut = Hardware.make_bracket_nut(self.doc, bracket, "Base")
+        self.doc.recompute()
+        self.base.Placement.Base = FreeCAD.Vector(0, 0, -1)
+        self.doc.recompute()
+        self.assertClean(nut)
+        self.assertEqual(nut.Profile, self.base)
+
     def test_bracket_nut_thread_fits_generic_slot(self):
         """A 40 bracket wants M8, but a Generic 4040's 8 mm slot only takes M6."""
         base = self.extrusion("4040", 500, FreeCAD.Placement(
