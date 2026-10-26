@@ -74,8 +74,20 @@ https://github.com/user-attachments/assets/7ed7ae74-4891-429f-9dcd-3f6c5e011870
   overhangs it by up to 10 mm) is also moved flush with that end, and one whose
   centre is over its base's face is centred on it, or lined up with a side of
   the base when that is nearer.
+- **Angle Bracket** command: click a side face where a plate or tabletop is
+  to be mounted and an angle bracket (20, 30 or 40 series) is bolted into the
+  nearest slot, with its T-nut and screw. One leg lies on the face; the
+  ledge stands out of it at the edge of the face, pointing up on a vertical
+  face, with two holes for the screws into the plate. Flip it with
+  `Direction`, move it with `Position`, and set `BendOffset` to put the
+  ledge below the edge.
+- **Foot** command: select the legs of a frame and an adjustable foot (a
+  threaded stud with a pad) is screwed into the bore at the lower end of
+  each, one per bore. `Extension` sets how far the pad is from the end, to
+  level the frame; the thread follows the series (M5, M6, M8) and can be
+  changed.
 - **Delete prompt**: deleting an extrusion that has corner brackets or T-nuts
-  asks whether to delete them (and their screws) too, once for a whole
+  asks whether to delete them (and their angle brackets, feet and screws) too, once for a whole
   selection. "Delete extrusion only" leaves them behind with an error.
 - **T-Nut** and **Screw** commands to add hardware by hand: click a profile
   face to drop a T-nut into the slot there, then add a screw into it (see

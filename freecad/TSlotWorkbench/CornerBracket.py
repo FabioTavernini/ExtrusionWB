@@ -488,15 +488,18 @@ def nuts_of(bracket_obj):
 def attached_to(extrusions):
     """What belongs to ``extrusions``: ``(screws, nuts, brackets)``.
 
-    The brackets joined to them, the nuts of those brackets and any nut
+    The brackets joined to them (and angle brackets and feet on them), the nuts of those brackets and any nut
     sitting in them, and the screws in those nuts.
     """
-    from . import Hardware
+    from . import Hardware, Mounting
 
     brackets, nuts = [], []
     for extrusion in extrusions:
         for obj in extrusion.InList:
-            if isinstance(getattr(obj, "Proxy", None), CornerBracket) and extrusion in (obj.Post, obj.Base):
+            proxy = getattr(obj, "Proxy", None)
+            if isinstance(proxy, (Mounting.AngleBracket, Mounting.Foot)) and obj.Profile == extrusion:
+                brackets.append(obj)
+            elif isinstance(proxy, CornerBracket) and extrusion in (obj.Post, obj.Base):
                 if obj not in brackets:
                     brackets.append(obj)
             elif Hardware.is_nut(obj) and obj.Profile == extrusion and obj not in nuts:

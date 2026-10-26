@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Angle bracket for mounting a plate</title>
+  <!-- Profile, seen end on, and the plate resting on the bracket -->
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 20 H24 V60 H4 Z"/>
+  <path fill="#c9b28a" stroke="#6b5a3a" stroke-width="2" stroke-linejoin="round" d="M4 12 H60 V20 H4 Z"/>
+  <!-- Bracket: leg on the face, ledge under the plate -->
+  <path fill="#e0a030" stroke="#7a5310" stroke-width="2" stroke-linejoin="round" d="M24 20 H52 V26 H30 V50 H24 Z"/>
+  <path fill="#7a5310" d="M40 20 H44 V26 H40 Z"/>
+</svg>

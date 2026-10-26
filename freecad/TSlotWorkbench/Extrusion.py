@@ -183,7 +183,7 @@ def _ask_delete(extrusions, screws, nuts, brackets):
     from PySide import QtWidgets
 
     parts = [f"{len(items)} {name}" for items, name in
-             ((brackets, "corner bracket(s)"), (nuts, "T-nut(s)"), (screws, "screw(s)")) if items]
+             ((brackets, "bracket(s) and feet"), (nuts, "T-nut(s)"), (screws, "screw(s)")) if items]
     what = extrusions[0].Label if len(extrusions) == 1 else f"{len(extrusions)} extrusions"
     box = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Question, "Delete extrusion",
                                 f"{what} has {', '.join(parts)} attached.\n\nDelete them too?")

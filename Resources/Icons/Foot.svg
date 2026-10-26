@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Adjustable foot</title>
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M18 4 H46 V24 H18 Z"/>
+  <path fill="#6f8ccc" stroke="#1e2e52" stroke-width="2" stroke-linejoin="round" d="M28 24 H36 V46 H28 Z"/>
+  <path fill="none" stroke="#1e2e52" stroke-width="1.5" d="M28 30 L36 28 M28 36 L36 34 M28 42 L36 40"/>
+  <path fill="#3a3f45" stroke="#15181b" stroke-width="2" stroke-linejoin="round" d="M12 46 H52 V54 H12 Z"/>
+</svg>

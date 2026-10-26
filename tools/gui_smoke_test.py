@@ -68,7 +68,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"} | QUICK_TOOLBARS)
         self.assertEqual(set(wb.listMenus()) - std_menus, {"Extrusions"})
         items = wb.getToolbarItems()
-        self.assertEqual(items["T-Slot"], [CMD, "TSlot_RectangularFrame", BRACKET_CMD, "TSlot_FitJoints", NUT_CMD, SCREW_CMD])
+        self.assertEqual(items["T-Slot"], [CMD, "TSlot_RectangularFrame", BRACKET_CMD, "TSlot_FitJoints", "TSlot_AngleBracket", "TSlot_Foot", NUT_CMD, SCREW_CMD])
         for group, commands in QUICK_CMDS.items():
             self.assertEqual(items[f"T-Slot {group}"], list(commands))
         for toolbars, menus in others.values():
@@ -246,6 +246,36 @@ class TestGui(unittest.TestCase):
         doc = FreeCAD.openDocument(path)
         (obj,) = doc.Objects
         self.assertIsInstance(obj.ViewObject.Proxy, Extrusion.ViewProviderExtrusion)
+
+    def test_foot_and_angle_bracket_commands(self):
+        from freecad.TSlotWorkbench import CornerBracket, Extrusion, Mounting
+
+        doc = FreeCAD.newDocument()
+        for name in ("TSlot_AngleBracket", "TSlot_Foot"):
+            self.assertTrue(os.path.isfile(FreeCADGui.Command.get(name).getInfo()["pixmap"]), name)
+        FreeCADGui.runCommand(CMD)
+        leg = doc.Objects[-1]
+        leg.Placement = FreeCAD.Placement(FreeCAD.Vector(), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 180))  # upside down
+        doc.recompute()
+
+        foot_cmd = FreeCADGui.Command.get("TSlot_Foot")
+        FreeCADGui.Selection.clearSelection()
+        self.assertFalse(foot_cmd.isActive())
+        FreeCADGui.Selection.addSelection(doc.Name, leg.Name)
+        self.assertTrue(foot_cmd.isActive())
+        FreeCADGui.runCommand("TSlot_Foot")
+        (foot,) = [o for o in doc.Objects if isinstance(getattr(o, "Proxy", None), Mounting.Foot)]
+        self.assertEqual(foot.End, "End")  # the lower end after turning it over
+        self.assertTrue(foot.isValid())
+        self.assertEqual(doc.UndoNames[0], "Foot")
+        self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [foot.Name])
+
+        # The delete prompt offers to take the foot with the extrusion.
+        asked, foot_name = [], foot.Name
+        Extrusion._ask_delete = lambda extrusions, screws, nuts, parts: asked.append(len(parts)) or "all"
+        self.assertTrue(leg.ViewObject.Proxy.onDelete(leg.ViewObject, []))
+        self.assertEqual(asked, [1])
+        self.assertIsNone(doc.getObject(foot_name))
 
     def test_corner_bracket(self):
         """Select two extrusions forming an L, run Corner Bracket."""

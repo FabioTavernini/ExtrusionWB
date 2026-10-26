@@ -206,6 +206,16 @@ class TSlotNut:
     def _follow_bracket(self, obj):
         from . import Brackets
 
+        if getattr(obj.Bracket.Proxy, "mounts_in_slot", False):
+            # A bracket that is bolted in a slot itself: sit in its slot.
+            holder = obj.Bracket
+            for name, value in (("Profile", holder.Profile), ("Side", holder.Side), ("Slot", holder.Slot)):
+                if getattr(obj, name) != value:
+                    setattr(obj, name, value)
+            if abs(obj.Position.Value - holder.Position.Value) > 1e-9:
+                obj.Position = holder.Position.Value
+            return
+
         bracket = Brackets.get_bracket(obj.Bracket.BracketSize)
         point, normal = bracket_hole(_bracket_placement(obj.Bracket), bracket, obj.BracketLeg)
         side, slot, position, _ = locate_in_slot(obj.Profile, point, normal, tol=FOLLOW_TOL)

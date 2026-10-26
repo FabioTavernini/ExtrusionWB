@@ -333,6 +333,92 @@ class FitJointsCommand:
             FreeCAD.Console.PrintMessage(f"Fit Joints: {message}\n")
 
 
+class AngleBracketCommand:
+    """Add an angle bracket, with its T-nut and screw, at each clicked point on an extrusion's face."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Angle Bracket",
+            "ToolTip": "Click a side face of an extrusion where a mounting bracket should go (Ctrl+click for "
+                       "more): an angle bracket for fixing a plate or tabletop is bolted into the nearest slot "
+                       "there, with its ledge at the edge of the face, pointing up on a vertical face. "
+                       "Flip it with Direction and move it with Position.",
+            "Pixmap": icon_path("AngleBracket.svg"),
+        }
+
+    def IsActive(self):
+        return bool(_picked_faces())
+
+    def Activated(self):
+        from . import Hardware, Mounting
+
+        picks = _picked_faces()
+        doc = picks[0][0].Document
+        doc.openTransaction("Angle Bracket")
+        try:
+            brackets = []
+            for obj, face, point in picks:
+                normal = face.normalAt(*face.Surface.parameter(point))
+                side, slot, position, _ = Hardware.locate_in_slot(obj, point, normal, snap=True)
+                bracket = Mounting.make_angle_bracket(doc, obj, side, slot, position)
+                Mounting.make_angle_bracket_hardware(doc, bracket)
+                brackets.append(bracket)
+            doc.recompute()
+            for obj in doc.Objects:
+                if not obj.isValid():
+                    raise RuntimeError(f"{obj.Label}: " + ("; ".join(obj.getStatusString().splitlines()) or "recompute failed"))
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintError(f"Angle Bracket failed: {exc}\n")
+            return
+        doc.commitTransaction()
+        if not Hardware.fasteners_available():
+            FreeCAD.Console.PrintWarning(f"Angle Bracket: T-nuts added without screws. {Hardware.FASTENERS_MISSING}\n")
+
+        FreeCADGui.Selection.clearSelection()
+        for bracket in brackets:
+            FreeCADGui.Selection.addSelection(doc.Name, bracket.Name)
+
+
+class FootCommand:
+    """Add an adjustable foot to the lower end of each selected extrusion."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Foot",
+            "ToolTip": "Select the legs of a frame: an adjustable foot is screwed into the bore at the lower "
+                       "end of each (one per bore). Set its Extension to level the frame.",
+            "Pixmap": icon_path("Foot.svg"),
+        }
+
+    def IsActive(self):
+        return bool(_selected_extrusions()[0])
+
+    def Activated(self):
+        from . import Mounting
+
+        extrusions, _ = _selected_extrusions()
+        doc = extrusions[0].Document
+        doc.openTransaction("Foot")
+        try:
+            feet = []
+            for extrusion in extrusions:
+                feet.extend(Mounting.make_feet(doc, extrusion, Mounting.lower_end(extrusion)))
+            doc.recompute()
+            for foot in feet:
+                if not foot.isValid():
+                    raise RuntimeError(f"{foot.Label}: " + ("; ".join(foot.getStatusString().splitlines()) or "recompute failed"))
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintError(f"Foot failed: {exc}\n")
+            return
+        doc.commitTransaction()
+
+        FreeCADGui.Selection.clearSelection()
+        for foot in feet:
+            FreeCADGui.Selection.addSelection(doc.Name, foot.Name)
+
+
 def _picked_faces():
     """Selected faces of extrusions, as (extrusion, face, picked point)."""
     from .Extrusion import Extrusion
@@ -374,7 +460,7 @@ def _resolve_faces(face_names):
 
 
 COMMANDS = ["TSlot_CreateExtrusion", "TSlot_RectangularFrame", "TSlot_CornerBracket", "TSlot_FitJoints",
-            "TSlot_TSlotNut", "TSlot_Screw"]
+            "TSlot_AngleBracket", "TSlot_Foot", "TSlot_TSlotNut", "TSlot_Screw"]
 # family -> its quick-insert command names, in button order.
 QUICK_COMMANDS = {}
 
@@ -382,6 +468,8 @@ FreeCADGui.addCommand("TSlot_CreateExtrusion", CreateExtrusionCommand())
 FreeCADGui.addCommand("TSlot_RectangularFrame", RectangularFrameCommand())
 FreeCADGui.addCommand("TSlot_CornerBracket", CornerBracketCommand())
 FreeCADGui.addCommand("TSlot_FitJoints", FitJointsCommand())
+FreeCADGui.addCommand("TSlot_AngleBracket", AngleBracketCommand())
+FreeCADGui.addCommand("TSlot_Foot", FootCommand())
 FreeCADGui.addCommand("TSlot_TSlotNut", TSlotNutCommand())
 FreeCADGui.addCommand("TSlot_Screw", ScrewCommand())
 for _family, (_name, _sizes) in QUICK_GROUPS.items():
