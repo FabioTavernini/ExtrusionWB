@@ -60,6 +60,20 @@ https://github.com/user-attachments/assets/7ed7ae74-4891-429f-9dcd-3f6c5e011870
   adds a gusset in every inside corner of the joint, with its T-nuts and
   screws. The brackets follow the profiles when they move (see
   [Corner brackets](#corner-brackets)).
+- **Rectangular Frame** command: enter an outer width and depth (and a
+  height for a box) and it builds the members with every length worked
+  out, so all joints are exact, plus corner brackets, T-nuts and screws in
+  the inside corners. Long members run the full width and the short ones fit
+  between them. In a box each leg is bracketed to both the long and the
+  short member of its corner, top and bottom.
+- **Fit Joints** command: select the extrusions of an existing frame and
+  each post whose end is near (up to 50 mm) a side face is lengthened or
+  shortened to meet it exactly. Unlike snapping, only the post's ends
+  move, so a closed loop of joints (a tabletop) is solved in one go. A post
+  that sits less than one post width in from the end of its base (or
+  overhangs it by up to 10 mm) is also moved flush with that end, and one whose
+  centre is over its base's face is centred on it, or lined up with a side of
+  the base when that is nearer.
 - **T-Nut** and **Screw** commands to add hardware by hand: click a profile
   face to drop a T-nut into the slot there, then add a screw into it (see
   [T-nuts and screws](#t-nuts-and-screws)). Screws are made by the
@@ -385,8 +399,9 @@ like any Fasteners screw.
   (1N, 2N, 3N), no 45° or round profiles, and no 45 mm series.
 - Straight extrusions only; no end cuts, mitres, tapped holes or machining.
 - Corner brackets only for 90° joints where an end meets a side face; no
-  end-to-end or mitred joints and no hidden connectors. No frame
-  generator, cut list or BOM.
+  end-to-end or mitred joints and no hidden connectors. The frame generator
+  makes rectangles and boxes only, and Fit Joints only corrects lengths,
+  not tilts. No cut list or BOM.
 - T-nuts are simplified sliding nuts with a plain hole; no spring-loaded,
   hammer-head or roll-in nuts. Screws attached to a nut keep their own
   `Length` when the clamped thickness changes.
@@ -404,7 +419,7 @@ Planned, not implemented:
 - Slot metadata (slot width, slot depth, core bore) for hardware placement.
 - Extrusions following selected sketch edges.
 - Hidden connectors; brackets for more joint types.
-- Frame generation.
+- Frames other than rectangles and boxes (L, T and custom layouts).
 - Cut lists and BOM export.
 
 ## Running the tests

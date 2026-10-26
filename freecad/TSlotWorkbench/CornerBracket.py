@@ -302,7 +302,7 @@ def snap_joint(a, b):
         raise Profiles.ProfileError(
             f"{post.Label} is already bracketed to {', '.join(others)}. Snapping it onto {base.Label} would "
             f"move it {abs(miss.gap):.3f} mm and pull that joint apart. Adjust its length or placement by "
-            "that amount instead.")
+            "that amount instead, or select the extrusions and use Fit Joints to correct the lengths.")
     old = post.getGlobalPlacement()
     end_normal = old.Rotation.multVec(FreeCAD.Vector(0, 0, -1 if miss.end == "Start" else 1))
     tilt = FreeCAD.Rotation(end_normal, -miss.face_normal)

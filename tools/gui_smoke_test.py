@@ -68,7 +68,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(set(wb.listToolbars()) - std_toolbars, {"T-Slot"} | QUICK_TOOLBARS)
         self.assertEqual(set(wb.listMenus()) - std_menus, {"Extrusions"})
         items = wb.getToolbarItems()
-        self.assertEqual(items["T-Slot"], [CMD, BRACKET_CMD, NUT_CMD, SCREW_CMD])
+        self.assertEqual(items["T-Slot"], [CMD, "TSlot_RectangularFrame", BRACKET_CMD, "TSlot_FitJoints", NUT_CMD, SCREW_CMD])
         for group, commands in QUICK_CMDS.items():
             self.assertEqual(items[f"T-Slot {group}"], list(commands))
         for toolbars, menus in others.values():
@@ -144,6 +144,34 @@ class TestGui(unittest.TestCase):
                     self.assertAlmostEqual(bb.ZLength, 750.0)
                     self.assertEqual([o.Name for o in FreeCADGui.Selection.getSelection()], [obj.Name])
         self.assertEqual(len(doc.Objects), count)
+
+    def test_rectangular_frame_and_fit_joints(self):
+        """Run Rectangular Frame (with the dialog stubbed), shorten a member, then Fit Joints."""
+        from freecad.TSlotWorkbench import Commands, Extrusion
+
+        doc = FreeCAD.newDocument()
+        for name in ("TSlot_RectangularFrame", "TSlot_FitJoints"):
+            self.assertTrue(os.path.isfile(FreeCADGui.Command.get(name).getInfo()["pixmap"]), name)
+        Commands._ask_frame_options = lambda: {
+            "width": 800.0, "depth": 400.0, "height": 0.0, "family": "Generic", "size": "4040",
+            "brackets": "Inside", "hardware": False}
+        FreeCADGui.runCommand("TSlot_RectangularFrame")
+        members = [o for o in doc.Objects if isinstance(getattr(o, "Proxy", None), Extrusion.Extrusion)]
+        self.assertEqual(len(members), 4)
+        self.assertEqual(doc.UndoNames[0], "Rectangular Frame")
+        short = next(m for m in members if m.Length.Value == 320)
+        short.Length = 300
+        doc.recompute()
+
+        FreeCADGui.Selection.clearSelection()
+        fit = FreeCADGui.Command.get("TSlot_FitJoints")
+        FreeCADGui.Selection.addSelection(doc.Name, short.Name)
+        self.assertFalse(fit.isActive())
+        for m in members:
+            FreeCADGui.Selection.addSelection(doc.Name, m.Name)
+        self.assertTrue(fit.isActive())
+        FreeCADGui.runCommand("TSlot_FitJoints")
+        self.assertAlmostEqual(short.Length.Value, 320.0, delta=1e-6)
 
     def test_corner_bracket(self):
         """Select two extrusions forming an L, run Corner Bracket."""

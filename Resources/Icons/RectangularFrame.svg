@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Rectangular frame</title>
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 12 H60 V22 H4 Z"/>
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 42 H60 V52 H4 Z"/>
+  <path fill="#b8c4d0" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 22 H14 V42 H4 Z"/>
+  <path fill="#b8c4d0" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M50 22 H60 V42 H50 Z"/>
+  <path fill="#e0a030" stroke="#7a5310" stroke-width="1.5" stroke-linejoin="round" d="M14 22 H22 L14 30 Z M50 22 H42 L50 30 Z M14 42 H22 L14 34 Z M50 42 H42 L50 34 Z"/>
+</svg>

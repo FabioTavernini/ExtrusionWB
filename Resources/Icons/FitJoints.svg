@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: LGPL-2.1-or-later -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Fit joints</title>
+  <!-- A base profile and a post whose end is pulled onto its face -->
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M4 46 H60 V60 H4 Z"/>
+  <path fill="#9aa7b4" stroke="#2e3a46" stroke-width="2" stroke-linejoin="round" d="M25 4 H39 V46 H25 Z"/>
+  <path fill="#e0a030" stroke="#7a5310" stroke-width="2" stroke-linejoin="round" d="M44 18 V34 M44 18 l-4 5 M44 18 l4 5 M44 34 l-4 -5 M44 34 l4 -5"/>
+</svg>

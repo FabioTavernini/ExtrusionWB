@@ -208,6 +208,131 @@ class ScrewCommand:
             FreeCADGui.Selection.addSelection(doc.Name, screw.Name)
 
 
+class RectangularFrameCommand:
+    """Add a rectangular frame or box, with every length worked out from the outer size."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Rectangular Frame",
+            "ToolTip": "Add a rectangular frame (a tabletop) or, with a height, a box from the outer "
+                       "size. Lengths are worked out so every joint is exact; corner brackets, T-nuts "
+                       "and screws are added in the inside corners.",
+            "Pixmap": icon_path("RectangularFrame.svg"),
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        from . import Frame
+
+        options = _ask_frame_options()
+        if options is None:
+            return
+        doc = FreeCAD.ActiveDocument or FreeCAD.newDocument()
+        doc.openTransaction("Rectangular Frame")
+        try:
+            Frame.make_rectangular_frame(doc, **options)
+            doc.recompute()
+            for obj in doc.Objects:
+                if not obj.isValid():
+                    raise RuntimeError(f"{obj.Label}: " + ("; ".join(obj.getStatusString().splitlines()) or "recompute failed"))
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintError(f"Rectangular Frame failed: {exc}\n")
+            return
+        doc.commitTransaction()
+        FreeCADGui.SendMsgToActiveView("ViewFit")
+
+
+def _ask_frame_options():
+    """Ask for the frame's size and options. Returns the keyword arguments of
+    ``make_rectangular_frame``, or None if cancelled."""
+    from PySide import QtWidgets
+
+    from . import Frame
+
+    dialog = QtWidgets.QDialog(FreeCADGui.getMainWindow())
+    dialog.setWindowTitle("Rectangular Frame")
+    form = QtWidgets.QFormLayout(dialog)
+
+    def spin(value, minimum=0.0):
+        box = QtWidgets.QDoubleSpinBox()
+        box.setRange(minimum, 100000.0)
+        box.setDecimals(1)
+        box.setSuffix(" mm")
+        box.setValue(value)
+        return box
+
+    width, depth, height = spin(800.0), spin(400.0), spin(0.0)
+    height.setSpecialValueText("flat (no height)")
+    family = QtWidgets.QComboBox()
+    family.addItems(Profiles.families())
+    size = QtWidgets.QComboBox()
+
+    def fill_sizes():
+        size.clear()
+        size.addItems(Profiles.sizes(family.currentText()))
+        size.setCurrentText(Profiles.DEFAULT_SIZE)
+
+    family.currentIndexChanged.connect(fill_sizes)
+    fill_sizes()
+    brackets = QtWidgets.QComboBox()
+    brackets.addItems(Frame.BRACKETS)
+    hardware = QtWidgets.QCheckBox("T-nuts and screws")
+    hardware.setChecked(True)
+    for label, widget in (("Width (X)", width), ("Depth (Y)", depth), ("Height (Z)", height),
+                          ("Family", family), ("Size", size), ("Brackets", brackets), ("", hardware)):
+        form.addRow(label, widget)
+    buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    form.addRow(buttons)
+    if not dialog.exec_():
+        return None
+    return {
+        "width": width.value(), "depth": depth.value(), "height": height.value(),
+        "family": family.currentText(), "size": size.currentText(),
+        "brackets": brackets.currentText(), "hardware": hardware.isChecked(),
+    }
+
+
+class FitJointsCommand:
+    """Change the lengths of selected extrusions so the joints between them are exact."""
+
+    def GetResources(self):
+        return {
+            "MenuText": "Fit Joints",
+            "ToolTip": "Select the extrusions of a frame: wherever the end of one is near a side face of "
+                       "another, its length is corrected so it meets the face exactly. Nothing else moves, "
+                       "so this also solves closed loops that snapping cannot.",
+            "Pixmap": icon_path("FitJoints.svg"),
+        }
+
+    def IsActive(self):
+        return len(_selected_extrusions()[0]) >= 2
+
+    def Activated(self):
+        from . import Frame
+
+        extrusions, _ = _selected_extrusions()
+        doc = extrusions[0].Document
+        doc.openTransaction("Fit Joints")
+        try:
+            messages = Frame.fit_joints(extrusions)
+            doc.recompute()
+            for obj in doc.Objects:
+                if not obj.isValid():
+                    raise RuntimeError(f"{obj.Label}: " + ("; ".join(obj.getStatusString().splitlines()) or "recompute failed"))
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintError(f"Fit Joints failed: {exc}\n")
+            return
+        doc.commitTransaction()
+        for message in messages:
+            FreeCAD.Console.PrintMessage(f"Fit Joints: {message}\n")
+
+
 def _picked_faces():
     """Selected faces of extrusions, as (extrusion, face, picked point)."""
     from .Extrusion import Extrusion
@@ -248,12 +373,15 @@ def _resolve_faces(face_names):
     return [(obj, obj.getSubObject(name)) for obj, name in face_names]
 
 
-COMMANDS = ["TSlot_CreateExtrusion", "TSlot_CornerBracket", "TSlot_TSlotNut", "TSlot_Screw"]
+COMMANDS = ["TSlot_CreateExtrusion", "TSlot_RectangularFrame", "TSlot_CornerBracket", "TSlot_FitJoints",
+            "TSlot_TSlotNut", "TSlot_Screw"]
 # family -> its quick-insert command names, in button order.
 QUICK_COMMANDS = {}
 
 FreeCADGui.addCommand("TSlot_CreateExtrusion", CreateExtrusionCommand())
+FreeCADGui.addCommand("TSlot_RectangularFrame", RectangularFrameCommand())
 FreeCADGui.addCommand("TSlot_CornerBracket", CornerBracketCommand())
+FreeCADGui.addCommand("TSlot_FitJoints", FitJointsCommand())
 FreeCADGui.addCommand("TSlot_TSlotNut", TSlotNutCommand())
 FreeCADGui.addCommand("TSlot_Screw", ScrewCommand())
 for _family, (_name, _sizes) in QUICK_GROUPS.items():
